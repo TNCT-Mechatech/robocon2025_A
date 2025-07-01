@@ -24,29 +24,29 @@
 
 // left arm motor pin name
 // set 0 to 15 or GPIO
-#define LEFT_SHOULDER_PWM 5
-#define LEFT_ELBOW_PWM 6
+#define LEFT_SHOULDER_PWM 4
+#define LEFT_ELBOW_PWM 5
 
-#define LEFT_SHOULDER_DIR 12
-#define LEFT_ELBOW_DIR 13
+#define LEFT_SHOULDER_DIR 8
+#define LEFT_ELBOW_DIR 9
 
 // right arm motor pin name
 // set 0 to 15 or GPIO
-#define RIGHT_SHOULDER_PWM 7
-#define RIGHT_ELBOW_PWM 8
+#define RIGHT_SHOULDER_PWM 6
+#define RIGHT_ELBOW_PWM 7
 
-#define RIGHT_SHOULDER_DIR 14
-#define RIGHT_ELBOW_DIR 15
+#define RIGHT_SHOULDER_DIR 10
+#define RIGHT_ELBOW_DIR 11
 
 // slider motor pin name
 // set 0 to 15 or GPIO
-#define FRONT_SLIDER_PWM 10
-#define BACK_SLIDER_PWM 11
+#define FRONT_SLIDER_PWM 12
+#define BACK_SLIDER_PWM 13
 
-#define FRONT_SLIDER_DIR 9
-#define BACK_SLIDER_DIR 8
+#define FRONT_SLIDER_DIR 1
+#define BACK_SLIDER_DIR 7
 
 // air motor pin name
 //set 0 to 15 or GPIO
-#define LEFT_ARM_AIR_PWM EMPTY
-#define RIGHT_ARM_AIR_PWM EMPTY
+#define LEFT_ARM_AIR_PWM 14
+#define RIGHT_ARM_AIR_PWM 15
