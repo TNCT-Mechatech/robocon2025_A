@@ -41,7 +41,10 @@ include_directories(
 set(node_list pan_tilt_node)
 
 foreach(node ${node_list})
-  add_executable(${node} src/${node}.cpp)
+  add_executable(${node} 
+  src/${node}.cpp
+  src/SignalControl.cpp
+  )
   ament_target_dependencies(${node} rclcpp std_msgs sensor_msgs geometry_msgs)
   target_include_directories(${node} PRIVATE
     # "${SERIAL_BRIDGE_DIR}/src"
