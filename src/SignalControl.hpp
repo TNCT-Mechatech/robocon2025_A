@@ -5,7 +5,7 @@
 #include "Mecanum_on_Ros2/src/types.hpp"
 
 
-extern CTYPE pwm_controls[4];
+extern PWMTYPE pwm_controls[4];
 extern DIRTYPE dir_controls[4];
 
 #endif

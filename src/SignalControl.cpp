@@ -1,7 +1,7 @@
 #include "SignalControl.hpp"
 #include "PinName.hpp"
 
-CTYPE pwm_controls[4] = 
+PWMTYPE pwm_controls[4] = 
 {
     {ControlType::PCA9685, 0, WHEEL_FL_PWM, 1000},
     {ControlType::PCA9685, 0, WHEEL_FR_PWM, 1000},

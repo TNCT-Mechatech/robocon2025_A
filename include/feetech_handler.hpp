@@ -1,8 +1,9 @@
 #pragma once
-#include "serial_port_handler.hpp"
 #include <map>
 #include <numeric>
 #include <optional>
+
+#include "serial_port_handler.hpp"
 
 struct ServoStatus
 {
@@ -18,7 +19,7 @@ struct ServoConfig
 
 class FeetechHandler
 {
-public:
+ public:
   FeetechHandler(void) {}
 
   bool Initialize(const std::map<int, ServoConfig> &config_list)
@@ -28,7 +29,32 @@ public:
     return true;
   }
 
-  void Close(void) { serial_port_handler_.CloseSerial(); }
+  void Close(void)
+  {
+    serial_port_handler_.CloseSerial();
+  }
+
+  // 動作モードを設定
+  // | mode: 0  | 位置制御モード  | 指定位置へ移動。サーボのように角度で停止。速度も付加可能。
+  // | mode: 1  | 速度制御モード  | 指定速度で連続回転。位置指令は無視。DCモーター的な制御が可能。
+  // | mode: 2  | PWM制御モード   | モーターをPWM値で直接駆動（制御ループなし）。電子制御に近い。
+  bool SetOperatingMode(int id, int mode)
+  {
+    if (mode != 0 && mode != 1)
+    {
+      printf("Invalid mode value: %d (must be 0 or 1)\n", mode);
+      return false;
+    }
+
+    std::vector<unsigned char> buffer;
+    buffer.push_back(id);
+    buffer.push_back(4);     // データ長
+    buffer.push_back(3);     // 書き込みコマンド
+    buffer.push_back(0x21);  // Operating Mode の EEPROM アドレス
+    buffer.push_back(mode);  // モード値（0：位置，1：速度）
+
+    return SendCommandAndWait(buffer);
+  }
 
   bool SetCommand(int id, const int position, int velocity)
   {
@@ -38,9 +64,10 @@ public:
       return false;
     }
     // const ServoConfig config = config_list_.at(id);
-    // int regulated_position = std::min(std::max(position, config.min_tick), config.max_tick);
-    // int regulated_velocity = std::min(std::max(velocity, 0), max_tick_per_sec_);
-    // int regulated_velocity = std::min(std::max(velocity, -3150), 3150);
+    // int regulated_position = std::min(std::max(position, config.min_tick),
+    // config.max_tick); int regulated_velocity = std::min(std::max(velocity,
+    // 0), max_tick_per_sec_); int regulated_velocity =
+    // std::min(std::max(velocity, -3150), 3150);
     std::vector<unsigned char> send_data = GenerateSetPositionVelocityCommand(id, position, velocity);
     SendCommandAndWait(send_data);
     return true;
@@ -89,7 +116,7 @@ public:
     return std::nullopt;
   }
 
-private:
+ private:
   bool SendCommandAndWait(const std::vector<unsigned char> &buffer)
   {
     std::vector<unsigned char> send_command;
@@ -101,7 +128,7 @@ private:
     }
     send_command.push_back(GetCheckSum(buffer));
     bool ret = serial_port_handler_.Write(send_command);
-    usleep(4 * 1000); // wait 4[ms] for finish sending
+    usleep(4 * 1000);  // wait 4[ms] for finish sending
     return ret;
   }
 
@@ -175,16 +202,16 @@ private:
 
     std::vector<unsigned char> buffer;
     buffer.push_back(id);
-    buffer.push_back(9);  // len
-    buffer.push_back(3);  // write command
-    buffer.push_back(42); // command_pos_time_vel address
-   
-    buffer.push_back(0xff & (pos_uint16 >> 0)); // pos
+    buffer.push_back(9);   // len
+    buffer.push_back(3);   // write command
+    buffer.push_back(42);  // command_pos_time_vel address
+
+    buffer.push_back(0xff & (pos_uint16 >> 0));  // pos
     buffer.push_back(0xff & (pos_uint16 >> 8));
-    buffer.push_back(0x00); // time
+    buffer.push_back(0x00);  // time
     buffer.push_back(0x00);
 
-    buffer.push_back(0xff & (vel_uint16 >> 0)); // vel
+    buffer.push_back(0xff & (vel_uint16 >> 0));  // vel
     buffer.push_back(0xff & (vel_uint16 >> 8));
     return buffer;
   }
@@ -193,9 +220,9 @@ private:
   {
     std::vector<unsigned char> buffer;
     buffer.push_back(id);
-    buffer.push_back(4);    // len
-    buffer.push_back(2);    // write command
-    buffer.push_back(0x38); // current_pos
+    buffer.push_back(4);     // len
+    buffer.push_back(2);     // write command
+    buffer.push_back(0x38);  // current_pos
     buffer.push_back(4);
 
     return buffer;
@@ -205,15 +232,15 @@ private:
   {
     std::vector<unsigned char> buffer;
     buffer.push_back(id);
-    buffer.push_back(4);    // len
-    buffer.push_back(3);    // write command
-    buffer.push_back(0x28); // Torque Enable address (40)
+    buffer.push_back(4);     // len
+    buffer.push_back(3);     // write command
+    buffer.push_back(0x28);  // Torque Enable address (40)
     buffer.push_back(state ? 1 : 0);
 
     return buffer;
   }
 
-private:
+ private:
   SerialPortHandler serial_port_handler_;
   std::map<int, ServoConfig> config_list_;
   std::map<int, ServoStatus> status_list_;
