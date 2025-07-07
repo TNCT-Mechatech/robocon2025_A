@@ -23,10 +23,10 @@ class PanTiltNode : public PanTiltRosIf
     // controller.printControlInfo();
     printf("start feetech\n");
     std::map<int, ServoConfig> config_list;
-    // config_list[2] = {-32237, 32236};   // 右アーム先端
+    config_list[2] = {-32237, 32236};   // 右アーム先端
     config_list[20] = {-32237, 32236};  // 右アーム肩
-    // config_list[23] = {-32237, 32236};  // 左アーム肩
-    // config_list[25] = {-32237, 32236};  // 左アーム先端
+    config_list[23] = {-32237, 32236};  // 左アーム肩
+    config_list[25] = {-32237, 32236};  // 左アーム先端
 
     // config_list[21] = {-32237, 32236};
 
@@ -39,10 +39,11 @@ class PanTiltNode : public PanTiltRosIf
     else
       printf("success to open serial\n");
 
-    // feetech_handler_.SetOperatingMode(2, 1);
+    // デフォルトで無限回転モード
+    feetech_handler_.SetOperatingMode(2, 1);
     feetech_handler_.SetOperatingMode(20, 1);
-    // feetech_handler_.SetOperatingMode(23, 1);
-    // feetech_handler_.SetOperatingMode(25, 1);
+    feetech_handler_.SetOperatingMode(23, 1);
+    feetech_handler_.SetOperatingMode(25, 1);
 
     // feetech_handler_.SetOperatingMode(21, 1);
 
@@ -130,9 +131,8 @@ class PanTiltNode : public PanTiltRosIf
   // id: 23, home position: 2000
   // id: 20, home position: 1600
 
-  void servo_control(int id) {
+  void setCommandLimitted(id, value){
 
-    
   }
 
   ////////////////////////////////////////////////
@@ -233,7 +233,9 @@ class PanTiltNode : public PanTiltRosIf
 
   void setCommandCustomPos(const int id, const int value)
   {
+    feetech_handler_.SetOperatingMode(id, 0);
     feetech_handler_.SetCommand(id, value, 0);
+    feetech_handler_.SetOperatingMode(id, 1);
     usleep(100000);  // 100ms
   }
 
