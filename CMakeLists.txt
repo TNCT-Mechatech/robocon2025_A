@@ -21,6 +21,8 @@ find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 find_package(pigpio REQUIRED)
+find_package(Eigen3 REQUIRED)  # 行列計算
+find_package(nlohmann_json REQUIRED)  # jsonファイルの取り扱い
 
 find_library(PIGPIO_LIB pigpio)
 
@@ -50,6 +52,9 @@ foreach(node ${node_list})
     # "${SERIAL_BRIDGE_DIR}/src"
     "${rclcpp_INCLUDE_DIRS}"
     "${std_msgs_INCLUDE_DIRS}"
+    ${PROJECT_SOURCE_DIR}/include
+    $<TARGET_PROPERTY:Eigen3::Eigen,INTERFACE_INCLUDE_DIRECTORIES>
+    nlohmann_json::nlohmann_json
   )
   target_include_directories(${node} PUBLIC
   ${PROJECT_SOURCE_DIR}/include
@@ -58,7 +63,6 @@ foreach(node ${node_list})
     # "${SERIAL_BRIDGE_LIB}"
     "${rclcpp_LIBRARIES}"
     "${std_msgs_LIBRARIES}"
-    "${PIGPIO_LIB}"
     pigpio
   )
 endforeach()
