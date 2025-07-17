@@ -2,26 +2,41 @@
 
 #include <cmath>
 #include <iomanip>
+#include <memory>
 
 #include "Mecanum_on_Ros2/src/MecanumPCA9685_GPIO.hpp"
 #include "SignalControl.hpp"
 #include "feetech_handler.hpp"
 #include "pan_tilt_ros_if.hpp"
 // #include "robocon2025_a/slider.hpp"
+#include "PinName.hpp"
 #include "sensor_msgs/msg/joy.hpp"
 #include "std_msgs/msg/float32_multi_array.hpp"
-#include "PinName.hpp"
+
+#define SHOULDER_GAIN 0.5
+#define ELBOW_GAIN 0.5
 
 class PanTiltNode : public PanTiltRosIf
 {
  private:
-  PCA9685_RasPi pcacontrol_0, pcacontrol_1;
-  MecanumPCA9685_GPIO controller;
+  std::shared_ptr<PCA9685_RasPi> pcacontrol_0;
+  std::shared_ptr<PCA9685_RasPi> pcacontrol_1;
+  std::unique_ptr<MecanumPCA9685_GPIO> controller;
 
  public:
-  PanTiltNode(void) : PanTiltRosIf{}, controller(pwm_controls, dir_controls), pcacontrol_0(0, 1000), pcacontrol_1(1, 1000)
+  PanTiltNode(void) : PanTiltRosIf{}
   {
-    controller.printConfigInfo();
+    pcacontrol_0 = std::make_shared<PCA9685_RasPi>(OpenById{0, 1000});
+    pcacontrol_1 = std::make_shared<PCA9685_RasPi>(OpenById{1, 1000});
+
+    for (int i = 0; i < 4; i++)
+    {
+      pwm_controls[i].handle = pcacontrol_0->handle();
+      dir_controls[i].handle = pcacontrol_0->handle();
+    }
+    controller = std::make_unique<MecanumPCA9685_GPIO>(pwm_controls, dir_controls, pcacontrol_0, pcacontrol_0);
+
+    controller->printConfigInfo();
 
     printf("start feetech\n");
     std::map<int, ServoConfig> config_list;
@@ -30,7 +45,7 @@ class PanTiltNode : public PanTiltRosIf
     config_list[23] = {-32237, 32236};  // 左アーム肩
     config_list[25] = {-32237, 32236};  // 左アーム先端
 
-    // // config_list[21] = {-32237, 32236};
+    // // // config_list[21] = {-32237, 32236};
 
     bool open_success = feetech_handler_.Initialize(config_list);
     if (!open_success)
@@ -41,7 +56,7 @@ class PanTiltNode : public PanTiltRosIf
     else
       printf("success to open serial\n");
 
-    // デフォルトで無限回転モード
+    // // デフォルトで無限回転モード
     feetech_handler_.SetOperatingMode(2, 1);
     feetech_handler_.SetOperatingMode(20, 1);
     feetech_handler_.SetOperatingMode(23, 1);
@@ -92,11 +107,11 @@ class PanTiltNode : public PanTiltRosIf
       position_state_[0] = status.position;
       velocity_state_[0] = status.velocity;
 
-      std::cout << "|  " << "id: 2, " << "position: " << status.position << ", velocity: " << status.velocity << "|  joyData: " << joy_data << "\r" << std::flush;
+      // std::cout << "|  " << "id: 2, " << "position: " << status.position << ", velocity: " << status.velocity << "|  joyData: " << joy_data << "\r" << std::flush;
     }
     else
     {
-      std::cout << 2 << ": サーボの状態取得に失敗" << std::endl;
+      // std::cout << 2 << ": サーボの状態取得に失敗" << std::endl;
     }
 
     auto s2_opt = feetech_handler_.GetStatus(20);
@@ -113,7 +128,7 @@ class PanTiltNode : public PanTiltRosIf
     }
     else
     {
-      std::cout << 20 << ": サーボの状態取得に失敗" << std::endl;
+      // std::cout << 20 << ": サーボの状態取得に失敗" << std::endl;
     }
 
     auto s3_opt = feetech_handler_.GetStatus(23);
@@ -130,7 +145,7 @@ class PanTiltNode : public PanTiltRosIf
     }
     else
     {
-      std::cout << 23 << ": サーボの状態取得に失敗" << std::endl;
+      // std::cout << 23 << ": サーボの状態取得に失敗" << std::endl;
     }
 
     auto s4_opt = feetech_handler_.GetStatus(25);
@@ -147,7 +162,7 @@ class PanTiltNode : public PanTiltRosIf
     }
     else
     {
-      std::cout << 25 << ": サーボの状態取得に失敗" << std::endl;
+      // std::cout << 25 << ": サーボの状態取得に失敗" << std::endl;
     }
 
     publishJointState(joint_state);
@@ -179,11 +194,9 @@ class PanTiltNode : public PanTiltRosIf
     // bool r_button = msg->buttons[5];  // リセット
     // bool l_button = msg->buttons[4];  // ロック
 
+    controller->pinWrite(joy_lx, joy_ly, joy_rx);
 
-
-    controller.pinWrite(joy_lx, joy_ly, joy_rx);
-
-    controller.printControlInfo();
+    controller->printControlInfo();
 
     std::cout << "\n" << std::setw(11) << std::left << joy_lx << " | " << std::setw(11) << std::left << joy_ly << " | " << std::setw(11) << std::left << joy_rx << " | " << std::setw(11) << std::left << joy_ry << std::flush;
 
@@ -214,13 +227,11 @@ class PanTiltNode : public PanTiltRosIf
 
     // setCommand(20, joy_ly);
 
-    pcacontrol_1.setPwm(LEFT_SHOULDER_PWM, std::fabs(joy_ly));
-    pcacontrol_1.setPwm(LEFT_ELBOW_PWM, std::fabs(joy_ry));
+    pcacontrol_1->setPwm(LEFT_SHOULDER_PWM, std::fabs(joy_ly) * SHOULDER_GAIN);
+    pcacontrol_1->setPwm(LEFT_ELBOW_PWM, std::fabs(joy_ry) * ELBOW_GAIN);
 
-    pcacontrol_0.setDigital(LEFT_SHOULDER_DIR, (joy_ly >= 0.0 ? false : true));
-    pcacontrol_0.setDigital(LEFT_ELBOW_DIR, (joy_ry >= 0.0 ? false : true));
-
-
+    pcacontrol_0->setDigital(LEFT_SHOULDER_DIR, (joy_ly >= 0.0 ? false : true));
+    pcacontrol_0->setDigital(LEFT_ELBOW_DIR, (joy_ry >= 0.0 ? false : true));
 
     if (l_button && !r_button)
     {
@@ -240,10 +251,12 @@ class PanTiltNode : public PanTiltRosIf
     if (leftArm.lastButtonState_ == true && a_button == false)
     {
       leftArm.air_state_ = !leftArm.air_state_;  // 状態を反転（ON⇔OFF）
-      pcacontrol_1.setPwm(LEFT_ARM_AIR_PWM, leftArm.air_state_ ? 0.97 : 0.0);
+      pcacontrol_1->setPwm(LEFT_ARM_AIR_PWM, leftArm.air_state_ ? 0.97 : 0.0);
       // PwmGpio(13, leftArm.air_state_ ? 0.97 : 0.0);
     }
     leftArm.lastButtonState_ = a_button;  // 前回値を更新
+
+    // std::cout << std::left << std::setw(11) << (leftArm.air_state_ ? "true" : "false") << "\r" << std::flush;
   }
 
   void onTwistReceivedRightArm(const sensor_msgs::msg::Joy::SharedPtr msg) override
@@ -264,11 +277,11 @@ class PanTiltNode : public PanTiltRosIf
     //   velocity = status.velocity;
     // }
 
-    pcacontrol_1.setPwm(RIGHT_SHOULDER_PWM, std::fabs(joy_ly));
-    pcacontrol_1.setPwm(RIGHT_ELBOW_PWM, std::fabs(joy_ry));
+    pcacontrol_1->setPwm(RIGHT_SHOULDER_PWM, std::fabs(joy_ly) * SHOULDER_GAIN);
+    pcacontrol_1->setPwm(RIGHT_ELBOW_PWM, std::fabs(joy_ry) * ELBOW_GAIN);
 
-    pcacontrol_0.setDigital(RIGHT_SHOULDER_DIR, (joy_ly >= 0.0 ? false : true));
-    pcacontrol_0.setDigital(RIGHT_ELBOW_DIR, (joy_ry >= 0.0 ? false : true));
+    pcacontrol_0->setDigital(RIGHT_SHOULDER_DIR, (joy_ly >= 0.0 ? false : true));
+    pcacontrol_0->setDigital(RIGHT_ELBOW_DIR, (joy_ry >= 0.0 ? false : true));
 
     if (l_button && !r_button)
     {
@@ -288,10 +301,12 @@ class PanTiltNode : public PanTiltRosIf
     if (rightArm.lastButtonState_ == true && a_button == false)
     {
       rightArm.air_state_ = !rightArm.air_state_;  // 状態を反転（ON⇔OFF）
-      pcacontrol_1.setPwm(RIGHT_ARM_AIR_PWM, rightArm.air_state_ ? 0.97 : 0.0);
+      pcacontrol_1->setPwm(RIGHT_ARM_AIR_PWM, rightArm.air_state_ ? 0.97 : 0.0);
       // PwmGpio(13, rightArm.air_state_ ? 0.97 : 0.0);
     }
     rightArm.lastButtonState_ = a_button;  // 前回値を更新
+
+    // std::cout << std::left << std::setw(11) << (rightArm.air_state_ ? "true" : "false") << "\r" << std::flush;
   }
 
   /////////////////////////////////////////////////////////////////
@@ -315,12 +330,12 @@ class PanTiltNode : public PanTiltRosIf
 
   /////////////////////////////////////////
 
-    void setCommand(const int id, const float value)
+  void setCommand(const int id, const float value)
   {
-    feetech_handler_.SetCommand(id, 0, static_cast<int>(value * 3150)); // id, position, speed
+    feetech_handler_.SetCommand(id, 0, static_cast<int>(value * 3150));  // id, position, speed
     // RCLCPP_INFO(this->get_logger(), "%d\n", static_cast<int>(value * 3150));
 
-    usleep(1000); // 1msのガード時間
+    usleep(1000);  // 1msのガード時間
   }
 
   void setCommandCustomPos(const int id, const int value)

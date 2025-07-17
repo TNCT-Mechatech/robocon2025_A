@@ -40,16 +40,16 @@
 
 // slider motor pin name
 // set 0 to 15 or GPIO
-#define FRONT_SLIDER_PWM 0  // 1
-#define BACK_SLIDER_PWM 2   // 1
+#define FRONT_SLIDER_PWM 1  // 1
+#define BACK_SLIDER_PWM 3   // 1
 
-#define FRONT_SLIDER_DIR 1  // 1
-#define BACK_SLIDER_DIR 3   // 1
+#define FRONT_SLIDER_DIR 0  // 1
+#define BACK_SLIDER_DIR 2   // 1
 
 // air motor pin name
 // set 0 to 15 or GPIO
-#define LEFT_ARM_AIR_PWM 4   // 1
-#define RIGHT_ARM_AIR_PWM 6  // 1
+#define LEFT_ARM_AIR_PWM 5   // 1
+#define RIGHT_ARM_AIR_PWM 7  // 1
 
 // servo id
 #define RIGHT_HAND 2

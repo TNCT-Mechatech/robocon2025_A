@@ -21,6 +21,8 @@ class PanTiltRosIf : public rclcpp::Node
  public:
   PanTiltRosIf() : Node("pan_tilt_node")
   {
+    position_state_.resize(4);
+    velocity_state_.resize(4);
     joint_state_pub_ = this->create_publisher<sensor_msgs::msg::JointState>("/joint_states", 1);
     //  twist_sub_ = this->create_subscription<geometry_msgs::msg::TwistStamped>("cmd_rate", 10, std::bind(&PanTiltRosIf::onTwistReceived, this, std::placeholders::_1));
     //    twist_sub_ = this->create_subscription<std_msgs::msg::Float32MultiArray>("custom_topic", 10, std::bind(&PanTiltRosIf::onTwistReceived, this, std::placeholders::_1));
