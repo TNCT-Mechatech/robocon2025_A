@@ -10,11 +10,15 @@
 #include "pan_tilt_ros_if.hpp"
 // #include "robocon2025_a/slider.hpp"
 #include "PinName.hpp"
+// #include "PinName_v2.hpp"
 #include "sensor_msgs/msg/joy.hpp"
 #include "std_msgs/msg/float32_multi_array.hpp"
+#include <ament_index_cpp/get_package_share_directory.hpp>
 
-#define SHOULDER_GAIN 0.5
-#define ELBOW_GAIN 0.5
+#include <nlohmann/json.hpp>
+#include <fstream>
+
+using json = nlohmann::json;
 
 class PanTiltNode : public PanTiltRosIf
 {
@@ -23,11 +27,40 @@ class PanTiltNode : public PanTiltRosIf
   std::shared_ptr<PCA9685_RasPi> pcacontrol_1;
   std::unique_ptr<MecanumPCA9685_GPIO> controller;
 
+  json j_;
+
  public:
   PanTiltNode(void) : PanTiltRosIf{}
   {
     pcacontrol_0 = std::make_shared<PCA9685_RasPi>(OpenById{0, 1000});
     pcacontrol_1 = std::make_shared<PCA9685_RasPi>(OpenById{1, 1000});
+
+    // パッケージのshareディレクトリを取得
+    std::string pkg_path = ament_index_cpp::get_package_share_directory("robocon2025_a");
+    std::string config_path = pkg_path + "/config/config.json";
+
+    std::ifstream ifs(config_path);
+    if (!ifs) {
+        std::cerr << "config.json has not loaded." << std::endl;
+        return;
+    }
+    
+    try {
+        ifs >> j_;
+    } catch (const json::parse_error& e) {
+        std::cerr << "json parse error " << e.what() << std::endl;
+        return;
+    }
+    std::cout << "config.json has loaded." << std::endl;
+
+    paramater.slider_vel = j_["slider"];
+    paramater.foot_vel = j_["foot"]["velocity"];
+
+    for(auto& elem : j_["LeftArm"]["theta_vel"])
+      paramater.Left_theta_vel.push_back(elem);
+
+    for(auto& elem : j_["RightArm"]["theta_vel"])
+      paramater.Right_theta_vel.push_back(elem);
 
     for (int i = 0; i < 4; i++)
     {
@@ -194,7 +227,9 @@ class PanTiltNode : public PanTiltRosIf
     // bool r_button = msg->buttons[5];  // リセット
     // bool l_button = msg->buttons[4];  // ロック
 
-    controller->pinWrite(joy_lx, joy_ly, joy_rx);
+    
+
+    controller->pinWrite(joy_lx * paramater.foot_vel, joy_ly * paramater.foot_vel, joy_rx * paramater.foot_vel);
 
     controller->printControlInfo();
 
@@ -217,6 +252,8 @@ class PanTiltNode : public PanTiltRosIf
     bool a_button = msg->buttons[0];  // エア
     bool r_button = msg->buttons[5];  // 右旋回
     bool l_button = msg->buttons[4];  // 左旋回
+    bool x_button = msg->buttons[2];  // 先端右旋回
+    bool y_button = msg->buttons[3];  // 先端左旋回
     // auto s1_opt = feetech_handler_.GetStatus(20);
     // if (s1_opt)
     // {
@@ -227,24 +264,38 @@ class PanTiltNode : public PanTiltRosIf
 
     // setCommand(20, joy_ly);
 
-    pcacontrol_1->setPwm(LEFT_SHOULDER_PWM, std::fabs(joy_ly) * SHOULDER_GAIN);
-    pcacontrol_1->setPwm(LEFT_ELBOW_PWM, std::fabs(joy_ry) * ELBOW_GAIN);
+    pcacontrol_1->setPwm(LEFT_SHOULDER_PWM, std::fabs(joy_ly) * paramater.Left_theta_vel[1]);
+    pcacontrol_1->setPwm(LEFT_ELBOW_PWM, std::fabs(joy_ry) * paramater.Left_theta_vel[2]);
 
     pcacontrol_0->setDigital(LEFT_SHOULDER_DIR, (joy_ly >= 0.0 ? false : true));
     pcacontrol_0->setDigital(LEFT_ELBOW_DIR, (joy_ry >= 0.0 ? false : true));
 
     if (l_button && !r_button)
     {
-      setCommand(LEFT_SHOULDER, 0.1);
+      setCommand(LEFT_SHOULDER, paramater.Left_theta_vel[0]);
     }
-    else if (l_button && !r_button)
+    else if (!l_button && r_button)
     {
-      setCommand(LEFT_SHOULDER, -0.1);
+      setCommand(LEFT_SHOULDER, -paramater.Left_theta_vel[0]);
     }
     else
     {
       setCommand(LEFT_SHOULDER, 0.0);
       setCommand(LEFT_SHOULDER, 0.0);
+    }
+
+    if (x_button && !y_button)
+    {
+      setCommand(LEFT_HAND, paramater.Left_theta_vel[3]);
+    }
+    else if (!x_button && y_button)
+    {
+      setCommand(LEFT_HAND, -paramater.Left_theta_vel[3]);
+    }
+    else
+    {
+      setCommand(LEFT_HAND, 0.0);
+      setCommand(LEFT_HAND, 0.0);
     }
 
     // ボタンが押された瞬間を検出（立ち下がりエッジ）
@@ -269,6 +320,8 @@ class PanTiltNode : public PanTiltRosIf
     bool a_button = msg->buttons[0];  // エア
     bool r_button = msg->buttons[5];  // 右旋回
     bool l_button = msg->buttons[4];  // 左旋回
+    bool x_button = msg->buttons[2];  // 先端右旋回
+    bool y_button = msg->buttons[3];  // 先端左旋回
     // auto s1_opt = feetech_handler_.GetStatus(20);
     // if (s1_opt)
     // {
@@ -277,24 +330,38 @@ class PanTiltNode : public PanTiltRosIf
     //   velocity = status.velocity;
     // }
 
-    pcacontrol_1->setPwm(RIGHT_SHOULDER_PWM, std::fabs(joy_ly) * SHOULDER_GAIN);
-    pcacontrol_1->setPwm(RIGHT_ELBOW_PWM, std::fabs(joy_ry) * ELBOW_GAIN);
+    pcacontrol_1->setPwm(RIGHT_SHOULDER_PWM, std::fabs(joy_ly) * paramater.Right_theta_vel[1]);
+    pcacontrol_1->setPwm(RIGHT_ELBOW_PWM, std::fabs(joy_ry) * paramater.Right_theta_vel[2]);
 
     pcacontrol_0->setDigital(RIGHT_SHOULDER_DIR, (joy_ly >= 0.0 ? false : true));
     pcacontrol_0->setDigital(RIGHT_ELBOW_DIR, (joy_ry >= 0.0 ? false : true));
 
     if (l_button && !r_button)
     {
-      setCommand(RIGHT_SHOULDER, 0.1);
+      setCommand(RIGHT_SHOULDER, paramater.Right_theta_vel[0]);
     }
     else if (r_button && !l_button)
     {
-      setCommand(RIGHT_SHOULDER, -0.1);
+      setCommand(RIGHT_SHOULDER, -paramater.Right_theta_vel[0]);
     }
     else
     {
       setCommand(RIGHT_SHOULDER, 0.0);
       setCommand(RIGHT_SHOULDER, 0.0);
+    }
+
+    if (x_button && !y_button)
+    {
+      setCommand(RIGHT_HAND, paramater.Right_theta_vel[3]);
+    }
+    else if (!x_button && y_button)
+    {
+      setCommand(RIGHT_HAND, -paramater.Right_theta_vel[3]);
+    }
+    else
+    {
+      setCommand(RIGHT_HAND, 0.0);
+      setCommand(RIGHT_HAND, 0.0);
     }
 
     // // ボタンが押された瞬間を検出（立ち下がりエッジ）

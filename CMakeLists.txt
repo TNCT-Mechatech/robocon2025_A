@@ -23,6 +23,8 @@ find_package(rosidl_default_generators REQUIRED)
 find_package(pigpio REQUIRED)
 find_package(Eigen3 REQUIRED)  # 行列計算
 find_package(nlohmann_json REQUIRED)  # jsonファイルの取り扱い
+find_package(ament_index_cpp REQUIRED)
+
 
 find_library(PIGPIO_LIB pigpio)
 
@@ -47,7 +49,7 @@ foreach(node ${node_list})
   src/${node}.cpp
   src/SignalControl.cpp
   )
-  ament_target_dependencies(${node} rclcpp std_msgs sensor_msgs geometry_msgs)
+  ament_target_dependencies(${node} rclcpp std_msgs sensor_msgs geometry_msgs ament_index_cpp)
   target_include_directories(${node} PRIVATE
     # "${SERIAL_BRIDGE_DIR}/src"
     "${rclcpp_INCLUDE_DIRS}"
@@ -73,6 +75,12 @@ endforeach()
 install(DIRECTORY launch/
   DESTINATION share/${PROJECT_NAME}/launch
 )
+
+# config フォルダ内のファイルをshare/your_package/config/にコピー
+install(DIRECTORY config/
+  DESTINATION share/${PROJECT_NAME}/config
+)
+
 
 ###############
 

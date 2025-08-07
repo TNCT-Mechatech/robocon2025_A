@@ -16,6 +16,13 @@ struct controllerStatus
   bool air_state_{false};
 };
 
+struct act_config{
+  float slider_vel;
+  float foot_vel;
+  std::vector<float> Left_theta_vel;
+  std::vector<float> Right_theta_vel;
+};
+
 class PanTiltRosIf : public rclcpp::Node
 {
  public:
@@ -52,6 +59,8 @@ class PanTiltRosIf : public rclcpp::Node
 
   std::vector<int> position_state_;
   std::vector<int> velocity_state_;
+
+  act_config paramater;
 
   float joy_data;
 
