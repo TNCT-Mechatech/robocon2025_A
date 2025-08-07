@@ -1,47 +1,107 @@
-#include "feetech_handler.hpp"
-#include "pan_tilt_ros_if.hpp"
-#include "std_msgs/msg/float32_multi_array.hpp"
-#include "sensor_msgs/msg/joy.hpp"
+#include <pigpio.h>
 
-#include "robocon2025_a/slider.hpp"
+#include <cmath>
+#include <iomanip>
+#include <memory>
 
 #include "Mecanum_on_Ros2/src/MecanumPCA9685_GPIO.hpp"
 #include "SignalControl.hpp"
+#include "feetech_handler.hpp"
+#include "pan_tilt_ros_if.hpp"
+// #include "robocon2025_a/slider.hpp"
+#include "PinName.hpp"
+// #include "PinName_v2.hpp"
+#include "sensor_msgs/msg/joy.hpp"
+#include "std_msgs/msg/float32_multi_array.hpp"
+#include <ament_index_cpp/get_package_share_directory.hpp>
 
-#include <cmath>
+#include <nlohmann/json.hpp>
+#include <fstream>
 
-#include <pigpio.h>
+using json = nlohmann::json;
 
-class PanTiltNode : public PanTiltRosIf 
+class PanTiltNode : public PanTiltRosIf
 {
-private:
-PCA9685_RasPi pcacontrol;
-MecanumPCA9685_GPIO controller;
+ private:
+  std::shared_ptr<PCA9685_RasPi> pcacontrol_0;
+  std::shared_ptr<PCA9685_RasPi> pcacontrol_1;
+  std::unique_ptr<MecanumPCA9685_GPIO> controller;
 
-public:
-  PanTiltNode(void) : PanTiltRosIf{} , controller(pwm_controls, dir_controls), pcacontrol(0, 1000)
+  json j_;
+
+ public:
+  PanTiltNode(void) : PanTiltRosIf{}
   {
-    controller.printControlInfo();
-    // printf("start feetech\n");
-    // std::map<int, ServoConfig> config_list;
-    // config_list[23] = {-32237, 32236};
-    // config_list[25] = {-32237, 32236};
+    pcacontrol_0 = std::make_shared<PCA9685_RasPi>(OpenById{0, 1000});
+    pcacontrol_1 = std::make_shared<PCA9685_RasPi>(OpenById{1, 1000});
 
-    // bool open_success = feetech_handler_.Initialize(config_list);
-    // if (!open_success)
-    // {
-    //   printf("fail to open serial\n");
-    //   throw;
-    // }
-    // else
-    //   printf("success to open serial\n");
+    // パッケージのshareディレクトリを取得
+    std::string pkg_path = ament_index_cpp::get_package_share_directory("robocon2025_a");
+    std::string config_path = pkg_path + "/config/config.json";
 
-    // // Float32MultiArrayのサブスクライバを作成
-    // float32_subscriber_ = this->create_subscription<std_msgs::msg::Float32MultiArray>(
-    //     "feedback_data", 10, std::bind(&PanTiltNode::onFloat32MultiArrayReceived, this, _1));
+    std::ifstream ifs(config_path);
+    if (!ifs) {
+        std::cerr << "config.json has not loaded." << std::endl;
+        return;
+    }
+    
+    try {
+        ifs >> j_;
+    } catch (const json::parse_error& e) {
+        std::cerr << "json parse error " << e.what() << std::endl;
+        return;
+    }
+    std::cout << "config.json has loaded." << std::endl;
+
+    paramater.slider_vel = j_["slider"];
+    paramater.foot_vel = j_["foot"]["velocity"];
+
+    for(auto& elem : j_["LeftArm"]["theta_vel"])
+      paramater.Left_theta_vel.push_back(elem);
+
+    for(auto& elem : j_["RightArm"]["theta_vel"])
+      paramater.Right_theta_vel.push_back(elem);
+
+    for (int i = 0; i < 4; i++)
+    {
+      pwm_controls[i].handle = pcacontrol_0->handle();
+      dir_controls[i].handle = pcacontrol_0->handle();
+    }
+    controller = std::make_unique<MecanumPCA9685_GPIO>(pwm_controls, dir_controls, pcacontrol_0, pcacontrol_0);
+
+    controller->printConfigInfo();
+
+    printf("start feetech\n");
+    std::map<int, ServoConfig> config_list;
+    config_list[2] = {-32237, 32236};   // 右アーム先端
+    config_list[20] = {-32237, 32236};  // 右アーム肩
+    config_list[23] = {-32237, 32236};  // 左アーム肩
+    config_list[25] = {-32237, 32236};  // 左アーム先端
+
+    // // // config_list[21] = {-32237, 32236};
+
+    bool open_success = feetech_handler_.Initialize(config_list);
+    if (!open_success)
+    {
+      printf("fail to open serial\n");
+      throw;
+    }
+    else
+      printf("success to open serial\n");
+
+    // // デフォルトで無限回転モード
+    feetech_handler_.SetOperatingMode(2, 1);
+    feetech_handler_.SetOperatingMode(20, 1);
+    feetech_handler_.SetOperatingMode(23, 1);
+    feetech_handler_.SetOperatingMode(25, 1);
+
+    // feetech_handler_.SetOperatingMode(21, 1);
+
+    // Float32MultiArrayのサブスクライバを作成
+    // float32_subscriber_ = this->create_subscription<std_msgs::msg::Float32MultiArray>("feedback_data", 10, std::bind(&PanTiltNode::onFloat32MultiArrayReceived, this, _1));
   }
 
-private:
+ private:
   void PwmGpio(int pinName, float unitInterval)
   {
     gpioPWM(pinName, static_cast<int>(255.0 * unitInterval));
@@ -60,243 +120,309 @@ private:
   }
 
   /////////////////////////////////////////
-  // // As req
-  // void onTimer() override
-  // {
-  //   feetech_handler_.RequestStatus();
+  // As req
+  void onTimer() override
+  {
+    feetech_handler_.RequestStatus();
 
-  //   sensor_msgs::msg::JointState joint_state;
-  //   joint_state.header.stamp = now();
+    sensor_msgs::msg::JointState joint_state;
+    joint_state.header.stamp = now();
 
-  //   /*
+    auto s1_opt = feetech_handler_.GetStatus(2);
+    if (s1_opt)
+    {
+      // 取得成功
+      auto &status = s1_opt.value();
+      joint_state.name.push_back("right_arm_hand");
+      joint_state.position.push_back(static_cast<float>(status.position));
+      joint_state.velocity.push_back(static_cast<float>(status.velocity));
 
-  //   auto s1_opt = feetech_handler_.GetStatus(10); // 左車輪
-  //   if (s1_opt)
-  //   {
-  //     auto &status = s1_opt.value();
-  //     joint_state.name.push_back("left_wheel_joint");
-  //     joint_state.position.push_back(static_cast<float>(status.position));
-  //     joint_state.velocity.push_back(static_cast<float>(status.velocity));
-  //   }
+      position_state_[0] = status.position;
+      velocity_state_[0] = status.velocity;
 
+      // std::cout << "|  " << "id: 2, " << "position: " << status.position << ", velocity: " << status.velocity << "|  joyData: " << joy_data << "\r" << std::flush;
+    }
+    else
+    {
+      // std::cout << 2 << ": サーボの状態取得に失敗" << std::endl;
+    }
 
+    auto s2_opt = feetech_handler_.GetStatus(20);
+    if (s2_opt)
+    {
+      // 取得成功
+      auto &status = s2_opt.value();
+      joint_state.name.push_back("right_arm_shoulder");
+      joint_state.position.push_back(static_cast<float>(status.position));
+      joint_state.velocity.push_back(static_cast<float>(status.velocity));
 
+      position_state_[1] = status.position;
+      velocity_state_[1] = status.velocity;
+    }
+    else
+    {
+      // std::cout << 20 << ": サーボの状態取得に失敗" << std::endl;
+    }
 
-  //   auto s2_opt = feetech_handler_.GetStatus(11); // 右車輪
-  //   if (s2_opt)
-  //   {
-  //     auto &status = s2_opt.value();
-  //     joint_state.name.push_back("right_wheel_joint");
-  //     joint_state.position.push_back(static_cast<float>(status.position));
-  //     joint_state.velocity.push_back(static_cast<float>(status.velocity));
-  //   }
+    auto s3_opt = feetech_handler_.GetStatus(23);
+    if (s3_opt)
+    {
+      // 取得成功
+      auto &status = s3_opt.value();
+      joint_state.name.push_back("left_arm_shoulder");
+      joint_state.position.push_back(static_cast<float>(status.position));
+      joint_state.velocity.push_back(static_cast<float>(status.velocity));
 
-  //   */
+      position_state_[2] = status.position;
+      velocity_state_[2] = status.velocity;
+    }
+    else
+    {
+      // std::cout << 23 << ": サーボの状態取得に失敗" << std::endl;
+    }
 
-  //   auto s2_opt = feetech_handler_.GetStatus(23);
-  //   if (s2_opt)
-  //   {
-  //     // 取得成功
-  //     auto &status = s2_opt.value();
-  //     joint_state.name.push_back("arm_");
-  //     joint_state.position.push_back(static_cast<float>(status.position));
-  //     joint_state.velocity.push_back(static_cast<float>(status.velocity));
+    auto s4_opt = feetech_handler_.GetStatus(25);
+    if (s4_opt)
+    {
+      // 取得成功
+      auto &status = s4_opt.value();
+      joint_state.name.push_back("left_arm_hand");
+      joint_state.position.push_back(static_cast<float>(status.position));
+      joint_state.velocity.push_back(static_cast<float>(status.velocity));
 
-  //     position_state_ = status.position;
-  //     velocity_state_ = status.velocity;
+      position_state_[3] = status.position;
+      velocity_state_[3] = status.velocity;
+    }
+    else
+    {
+      // std::cout << 25 << ": サーボの状態取得に失敗" << std::endl;
+    }
 
-  //     RCLCPP_INFO(this->get_logger(), "id: %d, position: %d, velocity: %d\n", 23, status.position, status.velocity);
-  //   }
-  //   else
-  //   {
-  //     // 取得失敗
-  //     std::cout << "サーボの状態取得に失敗" << std::endl;
-  //   }
+    publishJointState(joint_state);
+  }
 
-    // publishJointState(joint_state);
-  // }
+  ///////////////////////////////////////
 
-  /////////////////////////////////////////
+  // id: 23, home position: 2000
+  // id: 20, home position: 1600
 
-  // void
-  // onTwistReceived_servo(int id, bool input_x, bool input_y)
-  // {
-  //   constexpr int stop_tick = 250;
-  //   int position_state;
-
-  //   if (velocity_state_ < 0)
-  //   {
-  //     position_state = position_state_ - 1 * stop_tick;
-  //   }
-  //   else
-  //     position_state = position_state_ + stop_tick;
-
-  //   if (position_state > 4094*4 -1 )
-  //   {
-  //     position_state = 4094*4 - 1;
-  //   }
-  //   else if (position_state < 1)
-  //   {
-  //     position_state = 1;
-  //   }
-
-  //   if (input_x != input_y)
-  //   {
-
-  //     float joy_input = static_cast<float>(input_x ? input_x : -1 * input_y) * 0.25;
-
-  //     // joy_input: -1.0 ～ +1.0 を native speed (0～4096)に変換
-  //     // フィジカル速度の上限を指定（例：max_speed = 4096）
-  //     constexpr int max_speed = 3150;
-  //     int native_speed = static_cast<int>(std::abs(joy_input) * max_speed);
-
-  //     // 回転方向によって方向ビットを制御（feetech側で負値処理不要の場合）
-  //     if (joy_input >= 0)
-  //     {
-  //       // 時計回り（bit15 = 0）
-  //       feetech_handler_.SetCommand(id, 4094*4 - 1, native_speed);
-  //       // RCLCPP_INFO(this->get_logger(), "CW speed = %d", native_speed);
-  //     }
-  //     else
-  //     {
-  //       // 反時計回り（bit15 = 1）
-  //       feetech_handler_.SetCommand(id, 1, native_speed /*| 0x8000*/);
-  //       // RCLCPP_INFO(this->get_logger(), "CCW speed = %d", native_speed);
-  //     }
-
-  //     // stop_position_state_ = position_state_;
-  //     stop_position_state_ = position_state;
-  //   }
-  //   else
-  //   {
-
-  //     if (abs(velocity_state_) != 0)
-  //     {
-
-  //       feetech_handler_.SetCommand(id, stop_position_state_, 1);
-
-  //       if (abs(velocity_state_) <= 100)
-  //       {
-  //         feetech_handler_.SetCommand(id, position_state_, 1);
-  //         // RCLCPP_INFO(this->get_logger(), "CW speed = %d", 0);
-  //       }
-  //     }
-  //   }
+  // void setCommandLimitted(int id, float value) {
   // }
 
   ////////////////////////////////////////////////
 
-  void onTwistReceived(const sensor_msgs::msg::Joy::SharedPtr msg) override
+  void onTwistReceivedFoot(const sensor_msgs::msg::Joy::SharedPtr msg) override
   {
-    // float position;
-    // float velocity;
+    // std::cout << "a" << std::endl;
     float joy_lx = msg->axes[0];
     float joy_ly = msg->axes[1] * -1;
     float joy_rx = msg->axes[2];
     float joy_ry = msg->axes[3] * -1;
 
-    bool x_button = msg->buttons[2]; // アーム1
-    bool y_button = msg->buttons[3]; // アーム2
-    bool a_button = msg->buttons[0]; // エア
-    bool r_button = msg->buttons[5]; // リセット
-    bool l_button = msg->buttons[4]; // ロック
+    joy_data = joy_ly;
 
-    controller.pinWrite(joy_lx, joy_ly, joy_rx);
+    // bool x_button = msg->buttons[2];  // アーム1
+    // bool y_button = msg->buttons[3];  // アーム2
+    // bool a_button = msg->buttons[0];  // エア
+    // bool r_button = msg->buttons[5];  // リセット
+    // bool l_button = msg->buttons[4];  // ロック
 
-    // auto s2_opt = feetech_handler_.GetStatus(23);
-    // if (s2_opt)
+    
+
+    controller->pinWrite(joy_lx * paramater.foot_vel, joy_ly * paramater.foot_vel, joy_rx * paramater.foot_vel);
+
+    controller->printControlInfo();
+
+    std::cout << "\n" << std::setw(11) << std::left << joy_lx << " | " << std::setw(11) << std::left << joy_ly << " | " << std::setw(11) << std::left << joy_rx << " | " << std::setw(11) << std::left << joy_ry << std::flush;
+
+    for (int i = 0; i < 6; i++)
+    {
+      move_up(1);
+      clear_line();
+    }
+  }
+
+  void onTwistReceivedLeftArm(const sensor_msgs::msg::Joy::SharedPtr msg) override
+  {
+    float position;
+    float velocity;
+    float joy_ly = msg->axes[1] * -1;
+    float joy_ry = msg->axes[3] * -1;
+
+    bool a_button = msg->buttons[0];  // エア
+    bool r_button = msg->buttons[5];  // 右旋回
+    bool l_button = msg->buttons[4];  // 左旋回
+    bool x_button = msg->buttons[2];  // 先端右旋回
+    bool y_button = msg->buttons[3];  // 先端左旋回
+    // auto s1_opt = feetech_handler_.GetStatus(20);
+    // if (s1_opt)
     // {
-    //   auto &status = s2_opt.value();
+    //   auto &status = s1_opt.value();
     //   position = status.position;
     //   velocity = status.velocity;
     // }
 
-    // onTwistReceived_servo(23, l_button, r_button);
+    // setCommand(20, joy_ly);
 
-    // if(x_button && !y_button)
+    pcacontrol_1->setPwm(LEFT_SHOULDER_PWM, std::fabs(joy_ly) * paramater.Left_theta_vel[1]);
+    pcacontrol_1->setPwm(LEFT_ELBOW_PWM, std::fabs(joy_ry) * paramater.Left_theta_vel[2]);
+
+    pcacontrol_0->setDigital(LEFT_SHOULDER_DIR, (joy_ly >= 0.0 ? false : true));
+    pcacontrol_0->setDigital(LEFT_ELBOW_DIR, (joy_ry >= 0.0 ? false : true));
+
+    if (l_button && !r_button)
+    {
+      setCommand(LEFT_SHOULDER, paramater.Left_theta_vel[0]);
+    }
+    else if (!l_button && r_button)
+    {
+      setCommand(LEFT_SHOULDER, -paramater.Left_theta_vel[0]);
+    }
+    else
+    {
+      setCommand(LEFT_SHOULDER, 0.0);
+      setCommand(LEFT_SHOULDER, 0.0);
+    }
+
+    if (x_button && !y_button)
+    {
+      setCommand(LEFT_HAND, paramater.Left_theta_vel[3]);
+    }
+    else if (!x_button && y_button)
+    {
+      setCommand(LEFT_HAND, -paramater.Left_theta_vel[3]);
+    }
+    else
+    {
+      setCommand(LEFT_HAND, 0.0);
+      setCommand(LEFT_HAND, 0.0);
+    }
+
+    // ボタンが押された瞬間を検出（立ち下がりエッジ）
+    if (leftArm.lastButtonState_ == true && a_button == false)
+    {
+      leftArm.air_state_ = !leftArm.air_state_;  // 状態を反転（ON⇔OFF）
+      pcacontrol_1->setPwm(LEFT_ARM_AIR_PWM, leftArm.air_state_ ? 0.97 : 0.0);
+      // PwmGpio(13, leftArm.air_state_ ? 0.97 : 0.0);
+    }
+    leftArm.lastButtonState_ = a_button;  // 前回値を更新
+
+    // std::cout << std::left << std::setw(11) << (leftArm.air_state_ ? "true" : "false") << "\r" << std::flush;
+  }
+
+  void onTwistReceivedRightArm(const sensor_msgs::msg::Joy::SharedPtr msg) override
+  {
+    float position;
+    float velocity;
+    float joy_ly = msg->axes[1] * -1;
+    float joy_ry = msg->axes[3] * -1;
+
+    bool a_button = msg->buttons[0];  // エア
+    bool r_button = msg->buttons[5];  // 右旋回
+    bool l_button = msg->buttons[4];  // 左旋回
+    bool x_button = msg->buttons[2];  // 先端右旋回
+    bool y_button = msg->buttons[3];  // 先端左旋回
+    // auto s1_opt = feetech_handler_.GetStatus(20);
+    // if (s1_opt)
     // {
-    //   setCommand(25, 0.1);
-    // }
-    // else if(y_button && !x_button)
-    // {
-    //   setCommand(25, -0.1);
-    // }
-    // else
-    // {
-    //   setCommand(25, 0.0);
-    //   setCommand(25, 0.0);
+    //   auto &status = s1_opt.value();
+    //   position = status.position;
+    //   velocity = status.velocity;
     // }
 
-    // PwmGpio(12, fabs(joy_ry) * 0.8);
-    // PwmGpio(18, fabs(joy_ly) * 0.4);
+    pcacontrol_1->setPwm(RIGHT_SHOULDER_PWM, std::fabs(joy_ly) * paramater.Right_theta_vel[1]);
+    pcacontrol_1->setPwm(RIGHT_ELBOW_PWM, std::fabs(joy_ry) * paramater.Right_theta_vel[2]);
 
+    pcacontrol_0->setDigital(RIGHT_SHOULDER_DIR, (joy_ly >= 0.0 ? false : true));
+    pcacontrol_0->setDigital(RIGHT_ELBOW_DIR, (joy_ry >= 0.0 ? false : true));
 
+    if (l_button && !r_button)
+    {
+      setCommand(RIGHT_SHOULDER, paramater.Right_theta_vel[0]);
+    }
+    else if (r_button && !l_button)
+    {
+      setCommand(RIGHT_SHOULDER, -paramater.Right_theta_vel[0]);
+    }
+    else
+    {
+      setCommand(RIGHT_SHOULDER, 0.0);
+      setCommand(RIGHT_SHOULDER, 0.0);
+    }
+
+    if (x_button && !y_button)
+    {
+      setCommand(RIGHT_HAND, paramater.Right_theta_vel[3]);
+    }
+    else if (!x_button && y_button)
+    {
+      setCommand(RIGHT_HAND, -paramater.Right_theta_vel[3]);
+    }
+    else
+    {
+      setCommand(RIGHT_HAND, 0.0);
+      setCommand(RIGHT_HAND, 0.0);
+    }
 
     // // ボタンが押された瞬間を検出（立ち下がりエッジ）
-    // if (lastButtonState_ == true && a_button == false)
-    // {
-    //   air_state_ = !air_state_; // 状態を反転（ON⇔OFF）
-    //   PwmGpio(13, air_state_ ? 0.97 : 0.0);
-    // }
-    // lastButtonState_ = a_button; // 前回値を更新
+    if (rightArm.lastButtonState_ == true && a_button == false)
+    {
+      rightArm.air_state_ = !rightArm.air_state_;  // 状態を反転（ON⇔OFF）
+      pcacontrol_1->setPwm(RIGHT_ARM_AIR_PWM, rightArm.air_state_ ? 0.97 : 0.0);
+      // PwmGpio(13, rightArm.air_state_ ? 0.97 : 0.0);
+    }
+    rightArm.lastButtonState_ = a_button;  // 前回値を更新
 
-    // DirGpio(7, joy_ry);
-    // DirGpio(8, joy_ly);
+    // std::cout << std::left << std::setw(11) << (rightArm.air_state_ ? "true" : "false") << "\r" << std::flush;
+  }
 
-    std::cout << joy_lx << ", " << joy_ly << ", " << joy_rx << ", " << joy_ry << "\r" << std::flush;
+  /////////////////////////////////////////////////////////////////
+
+  /////////////////////////////////////////////////////////////////
+
+  void clear_line()
+  {
+    std::cout << "\33[2K\r";  // 行をクリアしてカーソルを行頭へ
+  }
+
+  void move_up(int n)
+  {
+    std::cout << "\33[" << n << "A";  // 上にn行
+  }
+
+  void move_down(int n)
+  {
+    std::cout << "\33[" << n << "B";  // 下にn行
   }
 
   /////////////////////////////////////////
-  // Float32MultiArrayを受け取るコールバック
-  // void onFloat32MultiArrayReceived(const std_msgs::msg::Float32MultiArray::SharedPtr msg)
-  // {
 
-  //   if (msg->data.size() >= 4)
-  //   {
-  //     float rps = msg->data[0];
-  //     float timing = msg->data[1];
-  //     float timing_2 = msg->data[2];
-  //     float count = msg->data[3];
+  void setCommand(const int id, const float value)
+  {
+    feetech_handler_.SetCommand(id, 0, static_cast<int>(value * 3150));  // id, position, speed
+    // RCLCPP_INFO(this->get_logger(), "%d\n", static_cast<int>(value * 3150));
 
-  //     RCLCPP_INFO(this->get_logger(), "Received Float32MultiArray: [rps: %.3f, timing: %.3f, timing_2: %.3f, count: %.3f]", rps, timing, timing_2, count);
-  //     // 必要に応じてここで処理を追加する
+    usleep(1000);  // 1msのガード時間
+  }
 
-  //     if (timing_2 == 1)
-  //     {
-  //       setCommandCustomPos(23, 250); // unlock
-  //       RCLCPP_INFO(this->get_logger(), "------------------------unlocked------------------------");
-  //     }
-  //   }
-  //   else
-  //   {
-  //     RCLCPP_WARN(this->get_logger(), "Invalid Float32MultiArray size");
-  //   }
-  // }
+  void setCommandCustomPos(const int id, const int value)
+  {
+    feetech_handler_.SetOperatingMode(id, 0);
+    feetech_handler_.SetCommand(id, value, 0);
+    feetech_handler_.SetOperatingMode(id, 1);
+    usleep(100000);  // 100ms
+  }
 
-  // void setCommand(const int id, const float value)
-  // {
-  //   feetech_handler_.SetCommand(id, 0, static_cast<int>(value * 3150)); // id, position, speed
-  //   // RCLCPP_INFO(this->get_logger(), "%d\n", static_cast<int>(value * 3150));
+  void setTorqueEnable(const int id, const bool state)
+  {
+    feetech_handler_.SetTorqueEnable(id, state);
+    usleep(100000);
+  }
 
-  //   usleep(1000); // 1msのガード時間
-  // }
-
-  // void setCommandCustomPos(const int id, const int value)
-  // {
-  //   feetech_handler_.SetCommand(id, value, 0);
-  //   usleep(100000); // 100ms
-  // }
-
-  // void setTorqueEnable(const int id, const bool state)
-  // {
-  //   feetech_handler_.SetTorqueEnable(id, state);
-  //   usleep(100000);
-  // }
-
-private:
-//   FeetechHandler feetech_handler_;
-//   static constexpr int center_tick_ = 2048;
-//   static constexpr float tick_per_rad_ = 651.9f;
+ private:
+  FeetechHandler feetech_handler_;
+  // static constexpr int center_tick_ = 2048;
+  // static constexpr float tick_per_rad_ = 651.9f;
 
   // Float32MultiArrayのサブスクライバ
   // rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr float32_subscriber_;
@@ -312,15 +438,6 @@ int main(int argc, char *argv[])
     std::cerr << "pigpioの初期化に失敗しました。" << std::endl;
     return 1;
   }
-
-  // // GPIOピンを出力モードに設定
-  // gpioSetMode(7, PI_OUTPUT);
-  // gpioSetMode(8, PI_OUTPUT);
-
-  // // PWM信号を開始
-  // gpioSetPWMfrequency(12, 20 * 1000); // 周波数を設定
-  // gpioSetPWMfrequency(18, 20 * 1000);
-  // gpioSetPWMfrequency(13, 20 * 1000); // エア
 
   auto pan_tilt_node = std::make_shared<PanTiltNode>();
   rclcpp::spin(pan_tilt_node);
