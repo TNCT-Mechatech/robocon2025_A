@@ -10,17 +10,17 @@
 
 // mecanum wheel pwm pin name
 // set 0 to 15 or GPIO pin name
-#define WHEEL_FR_PWM 0  // 0
-#define WHEEL_FL_PWM 2  // 0
-#define WHEEL_BR_PWM 4  // 0
-#define WHEEL_BL_PWM 6  // 0
+#define WHEEL_FR_PWM 4 //0  // 0
+#define WHEEL_FL_PWM 5 //2  // 0
+#define WHEEL_BR_PWM 6 //4  // 0
+#define WHEEL_BL_PWM 7 //6  // 0
 
 // mecanum wheel dir pin name
 // set 0 to 15 or GPIO
-#define WHEEL_FR_DIR 1  // 0
-#define WHEEL_FL_DIR 3  // 0
-#define WHEEL_BR_DIR 5  // 0
-#define WHEEL_BL_DIR 7  // 0
+#define WHEEL_FR_DIR 4 //1  // 0
+#define WHEEL_FL_DIR 5 //3  // 0
+#define WHEEL_BR_DIR 6 //5 // 0
+#define WHEEL_BL_DIR 7 //7  // 0
 
 // left arm motor pin name
 // set 0 to 15 or GPIO
@@ -40,19 +40,26 @@
 
 // slider motor pin name
 // set 0 to 15 or GPIO
-#define FRONT_SLIDER_PWM 1  // 1
-#define BACK_SLIDER_PWM 3   // 1
+#define FRONT_SLIDER_PWM 12 //1  // 1
+#define BACK_SLIDER_PWM 13 //3   // 1
 
-#define FRONT_SLIDER_DIR 0  // 1
-#define BACK_SLIDER_DIR 2   // 1
+#define FRONT_SLIDER_DIR 12 //0  // 1
+#define BACK_SLIDER_DIR 13 //2   // 1
 
 // air motor pin name
 // set 0 to 15 or GPIO
-#define LEFT_ARM_AIR_PWM 5   // 1
-#define RIGHT_ARM_AIR_PWM 7  // 1
+#define LEFT_ARM_AIR_PWM 14 //5   // 1
+#define RIGHT_ARM_AIR_PWM 15 //7  // 1
 
 // servo id
 #define RIGHT_HAND 2
 #define RIGHT_SHOULDER 20
 #define LEFT_HAND 25
 #define LEFT_SHOULDER 23
+
+// Slider Switch id
+#define FRONT_OPENLIMITTER 27
+#define FRONT_CLOSELIMITTER 22
+
+#define BACK_OPENLIMITTER 10
+#define BACK_CLOSELIMITTER 9
