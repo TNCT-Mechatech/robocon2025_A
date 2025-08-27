@@ -35,6 +35,12 @@ class PanTiltNode : public PanTiltRosIf
     pcacontrol_0 = std::make_shared<PCA9685_RasPi>(OpenById{0, 1000});
     pcacontrol_1 = std::make_shared<PCA9685_RasPi>(OpenById{1, 1000});
 
+    gpioSetMode(FRONT_OPENLIMITTER, INPUT);
+    gpioSetMode(FRONT_CLOSELIMITTER, INPUT);
+    gpioSetMode(BACK_OPENLIMITTER, INPUT);
+    gpioSetMode(BACK_CLOSELIMITTER, INPUT);
+
+
     // パッケージのshareディレクトリを取得
     std::string pkg_path = ament_index_cpp::get_package_share_directory("robocon2025_a");
     std::string config_path = pkg_path + "/config/config.json";
@@ -219,6 +225,14 @@ class PanTiltNode : public PanTiltRosIf
     float joy_rx = msg->axes[2];
     float joy_ry = msg->axes[3] * -1;
 
+    bool button_up = msg->buttons[10];
+    bool button_down = msg->buttons[11];
+
+    bool FOLimSwitch = gpioRead(FRONT_OPENLIMITTER);
+    bool FCLimSwitch = gpioRead(FLONT_CLOSELIMITTER);
+    bool BOLimSwitch = gpioRead(BACK_OPENLIMITTER);
+    bool BCLimSwitch = gpioRead(BACK_CLOSELIMITTER);
+
     joy_data = joy_ly;
 
     // bool x_button = msg->buttons[2];  // アーム1
@@ -227,6 +241,32 @@ class PanTiltNode : public PanTiltRosIf
     // bool r_button = msg->buttons[5];  // リセット
     // bool l_button = msg->buttons[4];  // ロック
 
+    // ボタンが押された瞬間を検出（立ち下がりエッジ）
+    if (Foot.lastButtonState_ == true && button_up == false)
+    {
+      Foot.air_state_ = !Foot.air_state_;  // 状態を反転（ON⇔OFF）
+      pcacontrol_1->setPwm(FRONT_SLIDER_PWM, Foot.air_state_ ? 0.97 : 0.0);
+    }
+    Foot.lastButtonState_ = button_up;  // 前回値を更新
+
+    if (Foot2.lastButtonState_ == true && button_down == false)
+    {
+      Foot2.air_state_ = !Foot2.air_state_;  // 状態を反転（ON⇔OFF）
+      pcacontrol_1->setPwm(BACK_SLIDER_PWM, Foot2.air_state_ ? 0.97 : 0.0);
+    }
+    Foot2.lastButtonState_ = button_down;  // 前回値を更新
+
+    if(FCLimSwitch && !FOLimSwitch){
+      pcacontrol_1->setPwm(FRONT_SLIDER_DIR, 0);
+    }else if(!FCLimSwitch && FOLimSwitch){
+      pcacontrol_1->setPwm(FRONT_SLIDER_DIR, 1);
+    }
+
+    if(BCLimSwitch && !BOLimSwitch){
+      pcacontrol_1->setPwm(BACK_SLIDER_DIR, 0);
+    }else if(!BCLimSwitch && BOLimSwitch){
+      pcacontrol_1->setPwm(BACK_SLIDER_DIR, 1);
+    }
     
 
     controller->pinWrite(joy_lx * paramater.foot_vel, joy_ly * paramater.foot_vel, joy_rx * paramater.foot_vel);
