@@ -9,8 +9,8 @@
 #include "feetech_handler.hpp"
 #include "pan_tilt_ros_if.hpp"
 // #include "robocon2025_a/slider.hpp"
-#include "PinName.hpp"
-// #include "PinName_v2.hpp"
+// #include "PinName.hpp"
+#include "PinName_v2.hpp"
 #include "sensor_msgs/msg/joy.hpp"
 #include "std_msgs/msg/float32_multi_array.hpp"
 #include <ament_index_cpp/get_package_share_directory.hpp>
@@ -35,10 +35,10 @@ class PanTiltNode : public PanTiltRosIf
     pcacontrol_0 = std::make_shared<PCA9685_RasPi>(OpenById{0, 1000});
     pcacontrol_1 = std::make_shared<PCA9685_RasPi>(OpenById{1, 1000});
 
-    gpioSetMode(FRONT_OPENLIMITTER, INPUT);
-    gpioSetMode(FRONT_CLOSELIMITTER, INPUT);
-    gpioSetMode(BACK_OPENLIMITTER, INPUT);
-    gpioSetMode(BACK_CLOSELIMITTER, INPUT);
+    gpioSetMode(FRONT_OPENLIMITTER, PI_INPUT);
+    gpioSetMode(FRONT_CLOSELIMITTER, PI_INPUT);
+    gpioSetMode(BACK_OPENLIMITTER, PI_INPUT);
+    gpioSetMode(BACK_CLOSELIMITTER, PI_INPUT);
 
 
     // パッケージのshareディレクトリを取得
@@ -229,7 +229,7 @@ class PanTiltNode : public PanTiltRosIf
     bool button_down = msg->buttons[11];
 
     bool FOLimSwitch = gpioRead(FRONT_OPENLIMITTER);
-    bool FCLimSwitch = gpioRead(FLONT_CLOSELIMITTER);
+    bool FCLimSwitch = gpioRead(FRONT_CLOSELIMITTER);
     bool BOLimSwitch = gpioRead(BACK_OPENLIMITTER);
     bool BCLimSwitch = gpioRead(BACK_CLOSELIMITTER);
 

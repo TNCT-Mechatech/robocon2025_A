@@ -56,8 +56,8 @@ class PanTiltRosIf : public rclcpp::Node
 
   controllerStatus leftArm;
   controllerStatus rightArm;
-  controllerstatus Foot;
-  controllerstatus Foot2;
+  controllerStatus Foot;
+  controllerStatus Foot2;
 
   std::vector<int> position_state_;
   std::vector<int> velocity_state_;
