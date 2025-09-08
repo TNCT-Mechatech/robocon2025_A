@@ -241,33 +241,36 @@ class PanTiltNode : public PanTiltRosIf
     // bool r_button = msg->buttons[5];  // リセット
     // bool l_button = msg->buttons[4];  // ロック
 
-    // ボタンが押された瞬間を検出（立ち下がりエッジ）
-    if (Foot.lastButtonState_ == true && button_up == false)
-    {
-      Foot.air_state_ = !Foot.air_state_;  // 状態を反転（ON⇔OFF）
-      pcacontrol_1->setPwm(FRONT_SLIDER_PWM, Foot.air_state_ ? 0.97 : 0.0);
-    }
-    Foot.lastButtonState_ = button_up;  // 前回値を更新
+    // // ボタンが押された瞬間を検出（立ち下がりエッジ）
+    // if (Foot.lastButtonState_ == true && button_up == false)
+    // {
+    //   Foot.air_state_ = !Foot.air_state_;  // 状態を反転（ON⇔OFF）
+    //   pcacontrol_1->setPwm(FRONT_SLIDER_PWM, Foot.air_state_ ? 0.97 : 0.0);
+    // }
+    // Foot.lastButtonState_ = button_up;  // 前回値を更新
 
-    if (Foot2.lastButtonState_ == true && button_down == false)
-    {
-      Foot2.air_state_ = !Foot2.air_state_;  // 状態を反転（ON⇔OFF）
-      pcacontrol_1->setPwm(BACK_SLIDER_PWM, Foot2.air_state_ ? 0.97 : 0.0);
-    }
-    Foot2.lastButtonState_ = button_down;  // 前回値を更新
+    // if (Foot2.lastButtonState_ == true && button_down == false)
+    // {
+    //   Foot2.air_state_ = !Foot2.air_state_;  // 状態を反転（ON⇔OFF）
+    //   pcacontrol_1->setPwm(BACK_SLIDER_PWM, Foot2.air_state_ ? 0.97 : 0.0);
+    // }
+    // Foot2.lastButtonState_ = button_down;  // 前回値を更新
 
-    if(FCLimSwitch && !FOLimSwitch){
-      pcacontrol_1->setPwm(FRONT_SLIDER_DIR, 0);
-    }else if(!FCLimSwitch && FOLimSwitch){
-      pcacontrol_1->setPwm(FRONT_SLIDER_DIR, 1);
-    }
+    // if(FCLimSwitch && !FOLimSwitch){
+    //   pcacontrol_1->setPwm(FRONT_SLIDER_DIR, 0);
+    // }else if(!FCLimSwitch && FOLimSwitch){
+    //   pcacontrol_1->setPwm(FRONT_SLIDER_DIR, 1);
+    // }
 
-    if(BCLimSwitch && !BOLimSwitch){
-      pcacontrol_1->setPwm(BACK_SLIDER_DIR, 0);
-    }else if(!BCLimSwitch && BOLimSwitch){
-      pcacontrol_1->setPwm(BACK_SLIDER_DIR, 1);
-    }
-    
+    // if(BCLimSwitch && !BOLimSwitch){
+    //   pcacontrol_1->setPwm(BACK_SLIDER_DIR, 0);
+    // }else if(!BCLimSwitch && BOLimSwitch){
+    //   pcacontrol_1->setPwm(BACK_SLIDER_DIR, 1);
+    // }
+
+    // テストコード
+    pcacontrol_1->setPwm(FRONT_SLIDER_PWM, button_up ? 0.5 : 0.0);
+    pcacontrol_1->setPwm(BACK_SLIDER_PWM, button_down ? 0.5 : 0.0);
 
     controller->pinWrite(joy_lx * paramater.foot_vel, joy_ly * paramater.foot_vel, joy_rx * paramater.foot_vel);
 
@@ -339,13 +342,16 @@ class PanTiltNode : public PanTiltRosIf
     }
 
     // ボタンが押された瞬間を検出（立ち下がりエッジ）
-    if (leftArm.lastButtonState_ == true && a_button == false)
-    {
-      leftArm.air_state_ = !leftArm.air_state_;  // 状態を反転（ON⇔OFF）
-      pcacontrol_1->setPwm(LEFT_ARM_AIR_PWM, leftArm.air_state_ ? 0.97 : 0.0);
-      // PwmGpio(13, leftArm.air_state_ ? 0.97 : 0.0);
-    }
-    leftArm.lastButtonState_ = a_button;  // 前回値を更新
+    // if (leftArm.lastButtonState_ == true && a_button == false)
+    // {
+    //   leftArm.air_state_ = !leftArm.air_state_;  // 状態を反転（ON⇔OFF）
+    //   pcacontrol_1->setPwm(LEFT_ARM_AIR_PWM, leftArm.air_state_ ? 0.97 : 0.0);
+    //   // PwmGpio(13, leftArm.air_state_ ? 0.97 : 0.0);
+    // }
+    // leftArm.lastButtonState_ = a_button;  // 前回値を更新
+
+   // test-code
+   pcacontrol_1->setPwm(LEFT_ARM_AIR_PWM, a_button ? 0.97 : 0.0);
 
     // std::cout << std::left << std::setw(11) << (leftArm.air_state_ ? "true" : "false") << "\r" << std::flush;
   }
@@ -405,13 +411,16 @@ class PanTiltNode : public PanTiltRosIf
     }
 
     // // ボタンが押された瞬間を検出（立ち下がりエッジ）
-    if (rightArm.lastButtonState_ == true && a_button == false)
-    {
-      rightArm.air_state_ = !rightArm.air_state_;  // 状態を反転（ON⇔OFF）
-      pcacontrol_1->setPwm(RIGHT_ARM_AIR_PWM, rightArm.air_state_ ? 0.97 : 0.0);
-      // PwmGpio(13, rightArm.air_state_ ? 0.97 : 0.0);
-    }
-    rightArm.lastButtonState_ = a_button;  // 前回値を更新
+    // if (rightArm.lastButtonState_ == true && a_button == false)
+    // {
+    //   rightArm.air_state_ = !rightArm.air_state_;  // 状態を反転（ON⇔OFF）
+    //   pcacontrol_1->setPwm(RIGHT_ARM_AIR_PWM, rightArm.air_state_ ? 0.97 : 0.0);
+    //   // PwmGpio(13, rightArm.air_state_ ? 0.97 : 0.0);
+    // }
+    // rightArm.lastButtonState_ = a_button;  // 前回値を更新
+
+   // test-code
+   pcacontrol_1->setPwm(LEFT_ARM_AIR_PWM, a_button ? 0.97 : 0.0);
 
     // std::cout << std::left << std::setw(11) << (rightArm.air_state_ ? "true" : "false") << "\r" << std::flush;
   }
