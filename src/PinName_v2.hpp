@@ -40,8 +40,8 @@
 
 // slider motor pin name
 // set 0 to 15 or GPIO
-#define FRONT_SLIDER_PWM 1 //12 //1  // 1
-#define BACK_SLIDER_PWM 3 //13 //3   // 1
+#define FRONT_SLIDER_PWM 1 //1  // 1
+#define BACK_SLIDER_PWM 3 //3   // 1
 
 #define FRONT_SLIDER_DIR 0 //12  // 1
 #define BACK_SLIDER_DIR 2 //13   // 1
@@ -58,8 +58,8 @@
 #define LEFT_SHOULDER 23
 
 // Slider Switch id
-#define FRONT_OPENLIMITTER 27
-#define FRONT_CLOSELIMITTER 22
+#define FRONT_OUTERLIMITTER 27
+#define FRONT_INNERLIMITTER 22
 
-#define BACK_OPENLIMITTER 10
-#define BACK_CLOSELIMITTER 9
+#define BACK_OUTERLIMITTER 10
+#define BACK_INNERLIMITTER 9

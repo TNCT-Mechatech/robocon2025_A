@@ -35,11 +35,20 @@ class PanTiltNode : public PanTiltRosIf
     pcacontrol_0 = std::make_shared<PCA9685_RasPi>(OpenById{0, 1000});
     pcacontrol_1 = std::make_shared<PCA9685_RasPi>(OpenById{1, 1000});
 
-    gpioSetMode(FRONT_OPENLIMITTER, PI_INPUT);
-    gpioSetMode(FRONT_CLOSELIMITTER, PI_INPUT);
-    gpioSetMode(BACK_OPENLIMITTER, PI_INPUT);
-    gpioSetMode(BACK_CLOSELIMITTER, PI_INPUT);
+    gpioSetMode(FRONT_OUTERLIMITTER, PI_INPUT);
+    gpioSetMode(FRONT_INNERLIMITTER, PI_INPUT);
+    gpioSetMode(BACK_OUTERLIMITTER, PI_INPUT);
+    gpioSetMode(BACK_INNERLIMITTER, PI_INPUT);
 
+    gpioSetPullUpDown(FRONT_OUTERLIMITTER, PI_PUD_DOWN);
+    gpioSetPullUpDown(FRONT_INNERLIMITTER, PI_PUD_DOWN);
+    gpioSetPullUpDown(BACK_OUTERLIMITTER, PI_PUD_DOWN);
+    gpioSetPullUpDown(BACK_INNERLIMITTER, PI_PUD_DOWN);
+
+    gpioGlitchFilter(FRONT_OUTERLIMITTER, 5000);
+    gpioGlitchFilter(FRONT_INNERLIMITTER, 5000);
+    gpioGlitchFilter(BACK_OUTERLIMITTER, 5000);
+    gpioGlitchFilter(BACK_INNERLIMITTER, 5000);
 
     // パッケージのshareディレクトリを取得
     std::string pkg_path = ament_index_cpp::get_package_share_directory("robocon2025_a");
@@ -225,58 +234,58 @@ class PanTiltNode : public PanTiltRosIf
     float joy_rx = msg->axes[2];
     float joy_ry = msg->axes[3] * -1;
 
-    bool button_up = msg->buttons[10];
-    bool button_down = msg->buttons[11];
+    bool button_up = msg->buttons[11];
+    bool button_down = msg->buttons[12];
 
-    bool FOLimSwitch = gpioRead(FRONT_OPENLIMITTER);
-    bool FCLimSwitch = gpioRead(FRONT_CLOSELIMITTER);
-    bool BOLimSwitch = gpioRead(BACK_OPENLIMITTER);
-    bool BCLimSwitch = gpioRead(BACK_CLOSELIMITTER);
+    bool FOLimSwitch = gpioRead(FRONT_OUTERLIMITTER);
+    bool FCLimSwitch = gpioRead(FRONT_INNERLIMITTER);
+    bool BOLimSwitch = gpioRead(BACK_OUTERLIMITTER);
+    bool BCLimSwitch = gpioRead(BACK_INNERLIMITTER);
 
     joy_data = joy_ly;
 
-    // bool x_button = msg->buttons[2];  // アーム1
-    // bool y_button = msg->buttons[3];  // アーム2
+    // bool r_button = msg->buttons[2];  // アーム1
+    // bool l_button = msg->buttons[3];  // アーム2
     // bool a_button = msg->buttons[0];  // エア
-    // bool r_button = msg->buttons[5];  // リセット
-    // bool l_button = msg->buttons[4];  // ロック
+    // bool r2_button = msg->buttons[5];  // リセット
+    // bool l2_button = msg->buttons[4];  // ロック
 
     // // ボタンが押された瞬間を検出（立ち下がりエッジ）
-    // if (Foot.lastButtonState_ == true && button_up == false)
-    // {
-    //   Foot.air_state_ = !Foot.air_state_;  // 状態を反転（ON⇔OFF）
-    //   pcacontrol_1->setPwm(FRONT_SLIDER_PWM, Foot.air_state_ ? 0.97 : 0.0);
-    // }
-    // Foot.lastButtonState_ = button_up;  // 前回値を更新
+    if (Foot.lastButtonState_ == true && button_up == false)
+    {
+      Foot.air_state_ = !Foot.air_state_;  // 状態を反転（ON⇔OFF）
+      pcacontrol_1->setPwm(FRONT_SLIDER_PWM, Foot.air_state_ ? 0.97 : 0.0);
+    }
+    Foot.lastButtonState_ = button_up;  // 前回値を更新
 
-    // if (Foot2.lastButtonState_ == true && button_down == false)
-    // {
-    //   Foot2.air_state_ = !Foot2.air_state_;  // 状態を反転（ON⇔OFF）
-    //   pcacontrol_1->setPwm(BACK_SLIDER_PWM, Foot2.air_state_ ? 0.97 : 0.0);
-    // }
-    // Foot2.lastButtonState_ = button_down;  // 前回値を更新
+    if (Foot2.lastButtonState_ == true && button_down == false)
+    {
+      Foot2.air_state_ = !Foot2.air_state_;  // 状態を反転（ON⇔OFF）
+      pcacontrol_1->setPwm(BACK_SLIDER_PWM, Foot2.air_state_ ? 0.97 : 0.0);
+    }
+    Foot2.lastButtonState_ = button_down;  // 前回値を更新
 
-    // if(FCLimSwitch && !FOLimSwitch){
-    //   pcacontrol_1->setPwm(FRONT_SLIDER_DIR, 0);
-    // }else if(!FCLimSwitch && FOLimSwitch){
-    //   pcacontrol_1->setPwm(FRONT_SLIDER_DIR, 1);
-    // }
+    if(FCLimSwitch && !FOLimSwitch){
+      pcacontrol_1->setPwm(FRONT_SLIDER_DIR, 0);
+    }else if(!FCLimSwitch && FOLimSwitch){
+      pcacontrol_1->setPwm(FRONT_SLIDER_DIR, 1);
+    }
 
-    // if(BCLimSwitch && !BOLimSwitch){
-    //   pcacontrol_1->setPwm(BACK_SLIDER_DIR, 0);
-    // }else if(!BCLimSwitch && BOLimSwitch){
-    //   pcacontrol_1->setPwm(BACK_SLIDER_DIR, 1);
-    // }
+    if(BCLimSwitch && !BOLimSwitch){
+      pcacontrol_1->setPwm(BACK_SLIDER_DIR, 0);
+    }else if(!BCLimSwitch && BOLimSwitch){
+      pcacontrol_1->setPwm(BACK_SLIDER_DIR, 1);
+    }
 
     // テストコード
-    pcacontrol_1->setPwm(FRONT_SLIDER_PWM, button_up ? 0.5 : 0.0);
-    pcacontrol_1->setPwm(BACK_SLIDER_PWM, button_down ? 0.5 : 0.0);
+    // pcacontrol_1->setPwm(FRONT_SLIDER_PWM, button_up ? 0.5 : 0.0);
+    // pcacontrol_1->setPwm(BACK_SLIDER_PWM, button_down ? 0.5 : 0.0);
 
     controller->pinWrite(joy_lx * paramater.foot_vel, joy_ly * paramater.foot_vel, joy_rx * paramater.foot_vel);
 
     controller->printControlInfo();
 
-    std::cout << "\n" << std::setw(11) << std::left << joy_lx << " | " << std::setw(11) << std::left << joy_ly << " | " << std::setw(11) << std::left << joy_rx << " | " << std::setw(11) << std::left << joy_ry << std::flush;
+            std::cout << "\n" << std::setw(11) << std::left << joy_lx << " | " << std::setw(11) << std::left << joy_ly << " | " << std::setw(11) << std::left << joy_rx << " | " << std::setw(11) << std::left << joy_ry << " | " << std::left << (FOLimSwitch ? 1 : 0) << std::left << (FCLimSwitch ? 1 : 0) << std::left << (BOLimSwitch ? 1 : 0) << std::left << (BCLimSwitch ? 1 : 0) << std::flush;
 
     for (int i = 0; i < 6; i++)
     {
@@ -293,10 +302,10 @@ class PanTiltNode : public PanTiltRosIf
     float joy_ry = msg->axes[3] * -1;
 
     bool a_button = msg->buttons[0];  // エア
-    bool r_button = msg->buttons[5];  // 右旋回
-    bool l_button = msg->buttons[4];  // 左旋回
-    bool x_button = msg->buttons[2];  // 先端右旋回
-    bool y_button = msg->buttons[3];  // 先端左旋回
+    bool r2_button = msg->axes[5];  // 右旋回
+    bool l2_button = msg->axes[4];  // 左旋回
+    bool r_button = msg->buttons[5];  // 先端右旋回
+    bool l_button = msg->buttons[4];  // 先端左旋回
     // auto s1_opt = feetech_handler_.GetStatus(20);
     // if (s1_opt)
     // {
@@ -313,13 +322,13 @@ class PanTiltNode : public PanTiltRosIf
     pcacontrol_0->setDigital(LEFT_SHOULDER_DIR, (joy_ly >= 0.0 ? false : true));
     pcacontrol_0->setDigital(LEFT_ELBOW_DIR, (joy_ry >= 0.0 ? false : true));
 
-    if (l_button && !r_button)
+    if (l2_button && !r2_button)
     {
-      setCommand(LEFT_SHOULDER, paramater.Left_theta_vel[0]);
+      setCommand(LEFT_SHOULDER, paramater.Left_theta_vel[0] * l2_button);
     }
-    else if (!l_button && r_button)
+    else if (!l2_button && r2_button)
     {
-      setCommand(LEFT_SHOULDER, -paramater.Left_theta_vel[0]);
+      setCommand(LEFT_SHOULDER, -paramater.Left_theta_vel[0] * r2_button);
     }
     else
     {
@@ -327,11 +336,11 @@ class PanTiltNode : public PanTiltRosIf
       setCommand(LEFT_SHOULDER, 0.0);
     }
 
-    if (x_button && !y_button)
+    if (r_button && !l_button)
     {
       setCommand(LEFT_HAND, paramater.Left_theta_vel[3]);
     }
-    else if (!x_button && y_button)
+    else if (!r_button && l_button)
     {
       setCommand(LEFT_HAND, -paramater.Left_theta_vel[3]);
     }
@@ -342,16 +351,16 @@ class PanTiltNode : public PanTiltRosIf
     }
 
     // ボタンが押された瞬間を検出（立ち下がりエッジ）
-    // if (leftArm.lastButtonState_ == true && a_button == false)
-    // {
-    //   leftArm.air_state_ = !leftArm.air_state_;  // 状態を反転（ON⇔OFF）
-    //   pcacontrol_1->setPwm(LEFT_ARM_AIR_PWM, leftArm.air_state_ ? 0.97 : 0.0);
-    //   // PwmGpio(13, leftArm.air_state_ ? 0.97 : 0.0);
-    // }
-    // leftArm.lastButtonState_ = a_button;  // 前回値を更新
+    if (leftArm.lastButtonState_ == true && a_button == false)
+    {
+      leftArm.air_state_ = !leftArm.air_state_;  // 状態を反転（ON⇔OFF）
+      pcacontrol_1->setPwm(LEFT_ARM_AIR_PWM, leftArm.air_state_ ? 0.97 : 0.0);
+      // PwmGpio(13, leftArm.air_state_ ? 0.97 : 0.0);
+    }
+    leftArm.lastButtonState_ = a_button;  // 前回値を更新
 
    // test-code
-   pcacontrol_1->setPwm(LEFT_ARM_AIR_PWM, a_button ? 0.97 : 0.0);
+  //  pcacontrol_1->setPwm(LEFT_ARM_AIR_PWM, a_button ? 0.97 : 0.0);
 
     // std::cout << std::left << std::setw(11) << (leftArm.air_state_ ? "true" : "false") << "\r" << std::flush;
   }
@@ -364,10 +373,10 @@ class PanTiltNode : public PanTiltRosIf
     float joy_ry = msg->axes[3] * -1;
 
     bool a_button = msg->buttons[0];  // エア
-    bool r_button = msg->buttons[5];  // 右旋回
-    bool l_button = msg->buttons[4];  // 左旋回
-    bool x_button = msg->buttons[2];  // 先端右旋回
-    bool y_button = msg->buttons[3];  // 先端左旋回
+    bool r2_button = msg->axes[5];  // 右旋回
+    bool l2_button = msg->axes[4];  // 左旋回
+    bool r_button = msg->buttons[5];  // 先端右旋回
+    bool l_button = msg->buttons[4];  // 先端左旋回
     // auto s1_opt = feetech_handler_.GetStatus(20);
     // if (s1_opt)
     // {
@@ -382,13 +391,13 @@ class PanTiltNode : public PanTiltRosIf
     pcacontrol_0->setDigital(RIGHT_SHOULDER_DIR, (joy_ly >= 0.0 ? false : true));
     pcacontrol_0->setDigital(RIGHT_ELBOW_DIR, (joy_ry >= 0.0 ? false : true));
 
-    if (l_button && !r_button)
+    if (l2_button && !r2_button)
     {
-      setCommand(RIGHT_SHOULDER, paramater.Right_theta_vel[0]);
+      setCommand(RIGHT_SHOULDER, paramater.Right_theta_vel[0] * r2_button);
     }
-    else if (r_button && !l_button)
+    else if (r2_button && !l2_button)
     {
-      setCommand(RIGHT_SHOULDER, -paramater.Right_theta_vel[0]);
+      setCommand(RIGHT_SHOULDER, -paramater.Right_theta_vel[0] * l2_button);
     }
     else
     {
@@ -396,11 +405,11 @@ class PanTiltNode : public PanTiltRosIf
       setCommand(RIGHT_SHOULDER, 0.0);
     }
 
-    if (x_button && !y_button)
+    if (r_button && !l_button)
     {
       setCommand(RIGHT_HAND, paramater.Right_theta_vel[3]);
     }
-    else if (!x_button && y_button)
+    else if (!r_button && l_button)
     {
       setCommand(RIGHT_HAND, -paramater.Right_theta_vel[3]);
     }
@@ -411,16 +420,16 @@ class PanTiltNode : public PanTiltRosIf
     }
 
     // // ボタンが押された瞬間を検出（立ち下がりエッジ）
-    // if (rightArm.lastButtonState_ == true && a_button == false)
-    // {
-    //   rightArm.air_state_ = !rightArm.air_state_;  // 状態を反転（ON⇔OFF）
-    //   pcacontrol_1->setPwm(RIGHT_ARM_AIR_PWM, rightArm.air_state_ ? 0.97 : 0.0);
-    //   // PwmGpio(13, rightArm.air_state_ ? 0.97 : 0.0);
-    // }
-    // rightArm.lastButtonState_ = a_button;  // 前回値を更新
+    if (rightArm.lastButtonState_ == true && a_button == false)
+    {
+      rightArm.air_state_ = !rightArm.air_state_;  // 状態を反転（ON⇔OFF）
+      pcacontrol_1->setPwm(RIGHT_ARM_AIR_PWM, rightArm.air_state_ ? 0.97 : 0.0);
+      // PwmGpio(13, rightArm.air_state_ ? 0.97 : 0.0);
+    }
+    rightArm.lastButtonState_ = a_button;  // 前回値を更新
 
    // test-code
-   pcacontrol_1->setPwm(LEFT_ARM_AIR_PWM, a_button ? 0.97 : 0.0);
+  //  pcacontrol_1->setPwm(LEFT_ARM_AIR_PWM, a_button ? 0.97 : 0.0);
 
     // std::cout << std::left << std::setw(11) << (rightArm.air_state_ ? "true" : "false") << "\r" << std::flush;
   }
