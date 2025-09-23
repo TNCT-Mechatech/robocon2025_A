@@ -50,6 +50,8 @@ class PanTiltNode : public PanTiltRosIf
     gpioGlitchFilter(BACK_OUTERLIMITTER, 5000);
     gpioGlitchFilter(BACK_INNERLIMITTER, 5000);
 
+    pcacontrol_1->setPwm(BACK_SLIDER_DIR, 1);
+
     // パッケージのshareディレクトリを取得
     std::string pkg_path = ament_index_cpp::get_package_share_directory("robocon2025_a");
     std::string config_path = pkg_path + "/config/config.json";
@@ -266,15 +268,15 @@ class PanTiltNode : public PanTiltRosIf
     Foot2.lastButtonState_ = button_down;  // 前回値を更新
 
     if(FCLimSwitch && !FOLimSwitch){
-      pcacontrol_1->setPwm(FRONT_SLIDER_DIR, 0);
-    }else if(!FCLimSwitch && FOLimSwitch){
       pcacontrol_1->setPwm(FRONT_SLIDER_DIR, 1);
+    }else if(!FCLimSwitch && FOLimSwitch){
+      pcacontrol_1->setPwm(FRONT_SLIDER_DIR, 0);
     }
 
     if(BCLimSwitch && !BOLimSwitch){
-      pcacontrol_1->setPwm(BACK_SLIDER_DIR, 0);
-    }else if(!BCLimSwitch && BOLimSwitch){
       pcacontrol_1->setPwm(BACK_SLIDER_DIR, 1);
+    }else if(!BCLimSwitch && BOLimSwitch){
+      pcacontrol_1->setPwm(BACK_SLIDER_DIR, 0);
     }
 
     // テストコード
@@ -302,8 +304,8 @@ class PanTiltNode : public PanTiltRosIf
     float joy_ry = msg->axes[3] * -1;
 
     bool a_button = msg->buttons[0];  // エア
-    bool r2_button = msg->axes[5];  // 右旋回
-    bool l2_button = msg->axes[4];  // 左旋回
+    float r2_button = msg->axes[5];  // 右旋回
+    float l2_button = msg->axes[4];  // 左旋回
     bool r_button = msg->buttons[5];  // 先端右旋回
     bool l_button = msg->buttons[4];  // 先端左旋回
     // auto s1_opt = feetech_handler_.GetStatus(20);
@@ -322,11 +324,11 @@ class PanTiltNode : public PanTiltRosIf
     pcacontrol_0->setDigital(LEFT_SHOULDER_DIR, (joy_ly >= 0.0 ? false : true));
     pcacontrol_0->setDigital(LEFT_ELBOW_DIR, (joy_ry >= 0.0 ? false : true));
 
-    if (l2_button && !r2_button)
+    if (l2_button > 0.0 && r2_button == 0.0)
     {
       setCommand(LEFT_SHOULDER, paramater.Left_theta_vel[0] * l2_button);
     }
-    else if (!l2_button && r2_button)
+    else if (r2_button > 0.0 && l2_button == 0.0)
     {
       setCommand(LEFT_SHOULDER, -paramater.Left_theta_vel[0] * r2_button);
     }
@@ -373,8 +375,8 @@ class PanTiltNode : public PanTiltRosIf
     float joy_ry = msg->axes[3] * -1;
 
     bool a_button = msg->buttons[0];  // エア
-    bool r2_button = msg->axes[5];  // 右旋回
-    bool l2_button = msg->axes[4];  // 左旋回
+    float r2_button = msg->axes[5];  // 右旋回
+    float l2_button = msg->axes[4];  // 左旋回
     bool r_button = msg->buttons[5];  // 先端右旋回
     bool l_button = msg->buttons[4];  // 先端左旋回
     // auto s1_opt = feetech_handler_.GetStatus(20);
@@ -391,13 +393,15 @@ class PanTiltNode : public PanTiltRosIf
     pcacontrol_0->setDigital(RIGHT_SHOULDER_DIR, (joy_ly >= 0.0 ? false : true));
     pcacontrol_0->setDigital(RIGHT_ELBOW_DIR, (joy_ry >= 0.0 ? false : true));
 
-    if (l2_button && !r2_button)
+    if (l2_button > 0.0 && r2_button == 0.0)
     {
-      setCommand(RIGHT_SHOULDER, paramater.Right_theta_vel[0] * r2_button);
+      float param = paramater.Right_theta_vel[0] * l2_button;
+      setCommand(RIGHT_SHOULDER, param);
     }
-    else if (r2_button && !l2_button)
+    else if (r2_button > 0.0 && l2_button == 0.0)
     {
-      setCommand(RIGHT_SHOULDER, -paramater.Right_theta_vel[0] * l2_button);
+      float param = -paramater.Right_theta_vel[0] * r2_button;
+      setCommand(RIGHT_SHOULDER, param);
     }
     else
     {
