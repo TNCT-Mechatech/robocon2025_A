@@ -23,7 +23,21 @@
                 "kd": 0.0
             }
         ],
-        "velocity": 1.0
+        "velocity": 1.0,
+        "acc_conf": [
+            {
+                "max_acc": 3.0,
+		"min_acc": 100.0
+	    },
+	    {
+                "max_acc": 3.0,
+		"min_acc": 100.0
+	    },
+	    {
+                "max_acc": 3.0,
+		"min_acc": 100.0
+	    }
+        ]
     },
     "LeftArm": {
         "theta_vel": [

@@ -18,7 +18,17 @@
 #include <nlohmann/json.hpp>
 #include <fstream>
 
+#include "TrapezoidalAcc/trapezoidal_acc.hpp"
+
 using json = nlohmann::json;
+
+inline void from_json(const json& j, AccConf& a){
+  j.at("max_acc").get_to(a.max_acc);
+  j.at("min_acc").get_to(a.min_acc);
+}
+
+// 台形加速
+// TrapezoidalAcc mecanum_Xaxes(0.8, 1.0), mecanum_Yaxes(0.8, 1.0), mecanum_Taxes(0.8, 1.0);
 
 class PanTiltNode : public PanTiltRosIf
 {
@@ -26,7 +36,7 @@ class PanTiltNode : public PanTiltRosIf
   std::shared_ptr<PCA9685_RasPi> pcacontrol_0;
   std::shared_ptr<PCA9685_RasPi> pcacontrol_1;
   std::unique_ptr<MecanumPCA9685_GPIO> controller;
-
+  std::unique_ptr<TrapezoidalAcc> mecanum_Xaxes, mecanum_Yaxes, mecanum_Taxes;
   json j_;
 
  public:
@@ -50,8 +60,6 @@ class PanTiltNode : public PanTiltRosIf
     gpioGlitchFilter(BACK_OUTERLIMITTER, 5000);
     gpioGlitchFilter(BACK_INNERLIMITTER, 5000);
 
-    pcacontrol_1->setPwm(BACK_SLIDER_DIR, 1);
-
     // パッケージのshareディレクトリを取得
     std::string pkg_path = ament_index_cpp::get_package_share_directory("robocon2025_a");
     std::string config_path = pkg_path + "/config/config.json";
@@ -61,7 +69,7 @@ class PanTiltNode : public PanTiltRosIf
         std::cerr << "config.json has not loaded." << std::endl;
         return;
     }
-    
+
     try {
         ifs >> j_;
     } catch (const json::parse_error& e) {
@@ -73,11 +81,17 @@ class PanTiltNode : public PanTiltRosIf
     paramater.slider_vel = j_["slider"];
     paramater.foot_vel = j_["foot"]["velocity"];
 
+    paramater.foot_acc_conf = j_["foot"]["acc_conf"].get<std::vector<AccConf>>();
+
     for(auto& elem : j_["LeftArm"]["theta_vel"])
       paramater.Left_theta_vel.push_back(elem);
 
     for(auto& elem : j_["RightArm"]["theta_vel"])
       paramater.Right_theta_vel.push_back(elem);
+
+    mecanum_Xaxes = std::make_unique<TrapezoidalAcc>(paramater.foot_acc_conf[0].max_acc, paramater.foot_acc_conf[0].min_acc);
+    mecanum_Yaxes = std::make_unique<TrapezoidalAcc>(paramater.foot_acc_conf[1].max_acc, paramater.foot_acc_conf[1].min_acc);
+    mecanum_Taxes = std::make_unique<TrapezoidalAcc>(paramater.foot_acc_conf[2].max_acc, paramater.foot_acc_conf[2].min_acc);
 
     for (int i = 0; i < 4; i++)
     {
@@ -108,9 +122,11 @@ class PanTiltNode : public PanTiltRosIf
 
     // // デフォルトで無限回転モード
     feetech_handler_.SetOperatingMode(2, 1);
-    feetech_handler_.SetOperatingMode(20, 1);
+    feetech_handler_.SetOperatingMode(0, 1);
     feetech_handler_.SetOperatingMode(23, 1);
     feetech_handler_.SetOperatingMode(25, 1);
+
+    last_callback_time_ = this->now();
 
     // feetech_handler_.SetOperatingMode(21, 1);
 
@@ -229,7 +245,7 @@ class PanTiltNode : public PanTiltRosIf
   ////////////////////////////////////////////////
 
   void onTwistReceivedFoot(const sensor_msgs::msg::Joy::SharedPtr msg) override
-  {
+  { 
     // std::cout << "a" << std::endl;
     float joy_lx = msg->axes[0];
     float joy_ly = msg->axes[1] * -1;
@@ -248,42 +264,87 @@ class PanTiltNode : public PanTiltRosIf
 
     // bool r_button = msg->buttons[2];  // アーム1
     // bool l_button = msg->buttons[3];  // アーム2
-    // bool a_button = msg->buttons[0];  // エア
+    bool a_button = msg->buttons[0];  // エア
+    bool y_button = msg->buttons[3];
     // bool r2_button = msg->buttons[5];  // リセット
     // bool l2_button = msg->buttons[4];  // ロック
 
-    // // ボタンが押された瞬間を検出（立ち下がりエッジ）
-    if (Foot.lastButtonState_ == true && button_up == false)
-    {
-      Foot.air_state_ = !Foot.air_state_;  // 状態を反転（ON⇔OFF）
-      pcacontrol_1->setPwm(FRONT_SLIDER_PWM, Foot.air_state_ ? 0.97 : 0.0);
-    }
-    Foot.lastButtonState_ = button_up;  // 前回値を更新
 
-    if (Foot2.lastButtonState_ == true && button_down == false)
+    if(y_button && !a_button)
     {
-      Foot2.air_state_ = !Foot2.air_state_;  // 状態を反転（ON⇔OFF）
-      pcacontrol_1->setPwm(BACK_SLIDER_PWM, Foot2.air_state_ ? 0.97 : 0.0);
-    }
-    Foot2.lastButtonState_ = button_down;  // 前回値を更新
-
-    if(FCLimSwitch && !FOLimSwitch){
-      pcacontrol_1->setPwm(FRONT_SLIDER_DIR, 1);
-    }else if(!FCLimSwitch && FOLimSwitch){
+      pcacontrol_1->setPwm(FRONT_SLIDER_PWM, 0.97);
       pcacontrol_1->setPwm(FRONT_SLIDER_DIR, 0);
     }
+    else if(a_button && !y_button)
+    {
+      pcacontrol_1->setPwm(FRONT_SLIDER_PWM, 0.97);
+      pcacontrol_1->setPwm(FRONT_SLIDER_DIR, 1);
+    }
+    else {pcacontrol_1->setPwm(FRONT_SLIDER_PWM, 0.0);}
 
-    if(BCLimSwitch && !BOLimSwitch){
-      pcacontrol_1->setPwm(BACK_SLIDER_DIR, 1);
-    }else if(!BCLimSwitch && BOLimSwitch){
+
+    if(button_up && !button_down)
+    {
+      pcacontrol_1->setPwm(BACK_SLIDER_PWM, 0.97);
       pcacontrol_1->setPwm(BACK_SLIDER_DIR, 0);
     }
+    else if(button_down && !button_up)
+    {
+      pcacontrol_1->setPwm(BACK_SLIDER_PWM, 0.97);
+      pcacontrol_1->setPwm(BACK_SLIDER_DIR, 1);
+    }
+    else {pcacontrol_1->setPwm(BACK_SLIDER_PWM, 0.0);}
+
+    // // // ボタンが押された瞬間を検出（立ち下がりエッジ）
+    // if (Foot.lastButtonState_ == true && button_up == false)
+    // {
+    //   Foot.air_state_ = !Foot.air_state_;  // 状態を反転（ON⇔OFF）
+    //   pcacontrol_1->setPwm(FRONT_SLIDER_PWM, Foot.air_state_ ? 0.97 : 0.0);
+    // }
+    // Foot.lastButtonState_ = button_up;  // 前回値を更新
+
+    // if (Foot2.lastButtonState_ == true && button_down == false)
+    // {
+    //   Foot2.air_state_ = !Foot2.air_state_;  // 状態を反転（ON⇔OFF）
+    //   pcacontrol_1->setPwm(BACK_SLIDER_PWM, Foot2.air_state_ ? 0.97 : 0.0);
+    // }
+    // Foot2.lastButtonState_ = button_down;  // 前回値を更新
+
+    // if(FCLimSwitch && !FOLimSwitch){
+    //   pcacontrol_1->setPwm(FRONT_SLIDER_DIR, 0);
+    // }else if(!FCLimSwitch && FOLimSwitch){
+    //   pcacontrol_1->setPwm(FRONT_SLIDER_DIR, 1);
+    // }
+
+    // if(BCLimSwitch && !BOLimSwitch){
+    //   pcacontrol_1->setPwm(BACK_SLIDER_DIR, 0);
+    // }else if(!BCLimSwitch && BOLimSwitch){
+    //   pcacontrol_1->setPwm(BACK_SLIDER_DIR, 1);
+    // }
 
     // テストコード
     // pcacontrol_1->setPwm(FRONT_SLIDER_PWM, button_up ? 0.5 : 0.0);
     // pcacontrol_1->setPwm(BACK_SLIDER_PWM, button_down ? 0.5 : 0.0);
 
-    controller->pinWrite(joy_lx * paramater.foot_vel, joy_ly * paramater.foot_vel, joy_rx * paramater.foot_vel);
+
+    rclcpp::Time current_time = this->now();
+    // 経過時間を計算
+    if (last_callback_time_.nanoseconds() > 0){
+      auto elapsed_time = current_time - last_callback_time_;
+      float dt_s = elapsed_time.seconds();
+
+      dt_s = std::clamp(dt_s, 0.0f, 0.05f); // 例えば最大50ms
+
+
+      // 今回の時刻を前回の時刻として保存
+      last_callback_time_ = current_time;
+
+      float x_vel = mecanum_Xaxes->updateVel(joy_lx * paramater.foot_vel, dt_s);
+      float y_vel = mecanum_Yaxes->updateVel(joy_ly * paramater.foot_vel, dt_s);
+      float turn_vel = mecanum_Taxes->updateVel(joy_rx * paramater.foot_vel, dt_s);
+
+      controller->pinWrite(x_vel, y_vel, turn_vel);
+    }
 
     controller->printControlInfo();
 
@@ -324,13 +385,15 @@ class PanTiltNode : public PanTiltRosIf
     pcacontrol_0->setDigital(LEFT_SHOULDER_DIR, (joy_ly >= 0.0 ? false : true));
     pcacontrol_0->setDigital(LEFT_ELBOW_DIR, (joy_ry >= 0.0 ? false : true));
 
-    if (l2_button > 0.0 && r2_button == 0.0)
+    if (l2_button > 0 && r2_button == 0)
     {
-      setCommand(LEFT_SHOULDER, paramater.Left_theta_vel[0] * l2_button);
+      float vel = paramater.Left_theta_vel[0] * l2_button;
+      setCommand(LEFT_SHOULDER, vel);
     }
-    else if (r2_button > 0.0 && l2_button == 0.0)
+    else if (l2_button == 0 && r2_button > 0)
     {
-      setCommand(LEFT_SHOULDER, -paramater.Left_theta_vel[0] * r2_button);
+      float vel = -paramater.Left_theta_vel[0] * r2_button;
+      setCommand(LEFT_SHOULDER, vel);
     }
     else
     {
@@ -393,15 +456,15 @@ class PanTiltNode : public PanTiltRosIf
     pcacontrol_0->setDigital(RIGHT_SHOULDER_DIR, (joy_ly >= 0.0 ? false : true));
     pcacontrol_0->setDigital(RIGHT_ELBOW_DIR, (joy_ry >= 0.0 ? false : true));
 
-    if (l2_button > 0.0 && r2_button == 0.0)
+    if (l2_button > 0 && r2_button == 0)
     {
-      float param = paramater.Right_theta_vel[0] * l2_button;
-      setCommand(RIGHT_SHOULDER, param);
+      float vel = paramater.Right_theta_vel[0] * l2_button;
+      setCommand(RIGHT_SHOULDER, vel);
     }
-    else if (r2_button > 0.0 && l2_button == 0.0)
+    else if (r2_button > 0 && l2_button == 0)
     {
-      float param = -paramater.Right_theta_vel[0] * r2_button;
-      setCommand(RIGHT_SHOULDER, param);
+      float vel = -paramater.Right_theta_vel[0] * r2_button;
+      setCommand(RIGHT_SHOULDER, vel);
     }
     else
     {
@@ -482,6 +545,10 @@ class PanTiltNode : public PanTiltRosIf
   }
 
  private:
+ 
+  rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joy_subscription_;
+  rclcpp::Time last_callback_time_; // 前回のコールバック時刻を保持
+
   FeetechHandler feetech_handler_;
   // static constexpr int center_tick_ = 2048;
   // static constexpr float tick_per_rad_ = 651.9f;

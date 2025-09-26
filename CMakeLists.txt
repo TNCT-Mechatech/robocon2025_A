@@ -48,6 +48,7 @@ foreach(node ${node_list})
   add_executable(${node} 
   src/${node}.cpp
   src/SignalControl.cpp
+  include/TrapezoidalAcc/trapezoidal_acc.cpp
   )
   ament_target_dependencies(${node} rclcpp std_msgs sensor_msgs geometry_msgs ament_index_cpp)
   target_include_directories(${node} PRIVATE

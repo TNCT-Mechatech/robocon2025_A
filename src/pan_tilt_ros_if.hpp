@@ -16,9 +16,16 @@ struct controllerStatus
   bool air_state_{false};
 };
 
+struct AccConf
+{
+  float max_acc;
+  float min_acc;
+};
+
 struct act_config{
   float slider_vel;
   float foot_vel;
+  std::vector<AccConf> foot_acc_conf;
   std::vector<float> Left_theta_vel;
   std::vector<float> Right_theta_vel;
 };
